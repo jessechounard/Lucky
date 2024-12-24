@@ -1,0 +1,68 @@
+dr_mp3 - MP3 audio decoder
+	Downloaded from github on 3/4/2024, version v0.6.39
+	https://github.com/mackron/dr_libs/blob/master/dr_mp3.h
+	Added an implementation file following the header instructions.
+	License: Public Domain / MIT
+
+dr_wav - WAV audio loader and writer
+	Downloaded from github on 3/4/2024, version v0.13.16
+	https://github.com/mackron/dr_libs/blob/master/dr_wav.h
+	Added an implementation file following the header instructions.
+	License: Public Domain / MIT
+
+glad - Multi-Language Vulkan/GL/GLES/EGL/GLX/WGL Loader
+	Generated with the glad 2 webservice, v2.0.6
+	https://gen.glad.sh/
+	Added an implementation file following the header instructions.
+	License: MIT
+
+glm - header only mathematics library
+	Downloaded from github on 3/30/2024, version 1.0.1
+	https://github.com/g-truc/glm
+	License: Happy Bunny / MIT
+
+rapidjson - header only JSON parser/generator
+	Downloaded from github on 11/6/2024 (clone of master branch)
+	https://github.com/Tencent/rapidjson/
+	License: Happy Bunny / MIT
+
+SDL - cross platform game development library
+	Website: https://libsdl.org/
+	Cloned from github on 12/22/2024, commit ecea347
+	https://github.com/libsdl-org/SDL
+	License: zlib
+
+spdlog - header only C++ logging library
+	Downloaded from github on 9/10/2024, version 1.14.1
+	https://github.com/gabime/spdlog
+	License: MIT
+
+SquirrelNoise - Squirrel's Raw Noise Utilities
+	Downloaded from author's website, version 5
+	http://eiserloh.net/noise/SquirrelNoise5.hpp
+	See also: https://www.youtube.com/watch?v=LWFzPP8ZbdU
+	License: CC-BY-3.0 US (Attribution)
+
+stb_image - image loader
+	Downloaded from github on 3/4/2024, version v2.29
+	https://github.com/nothings/stb/blob/master/stb_image.h
+	Added an implementation file following the header instructions.
+	License: Public Domain / MIT
+
+stb_rect_pack - simple 2D rectangle packer with decent quality
+	Downloaded from github on 9/22/2024, version v1.01
+	https://github.com/nothings/stb/blob/master/stb_rect_pack.h
+	Added an implementation file following the header instructions.
+	License: Public Domain / MIT
+
+stb_truetype - parse, decode, and rasterize characters from truetype fonts
+	Downloaded from github on 9/22/2024, version v1.26
+	https://github.com/nothings/stb/blob/master/stb_truetype.h
+	Added an implementation file following the header instructions.
+	License: Public Domain / MIT
+
+stb_vorbis - Ogg Vorbis audio decoder
+	Downloaded from github on 3/4/2024, version 1.22
+	https://github.com/nothings/stb/blob/master/stb_vorbis.c
+	Modified to create a separate header per instructions in file.
+	License: Public Domain / MIT

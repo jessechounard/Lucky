@@ -1,0 +1,44 @@
+{"frames": [
+
+{
+	"filename": "playerShip1_blue.png",
+	"frame": {"x":94,"y":1,"w":99,"h":75},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":99,"h":75},
+	"sourceSize": {"w":99,"h":75}
+},
+{
+	"filename": "playerShip2_green.png",
+	"frame": {"x":1,"y":94,"w":112,"h":75},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":112,"h":75},
+	"sourceSize": {"w":112,"h":75}
+},
+{
+	"filename": "playerShip3_orange.png",
+	"frame": {"x":115,"y":78,"w":98,"h":75},
+	"rotated": true,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":98,"h":75},
+	"sourceSize": {"w":98,"h":75}
+},
+{
+	"filename": "ufoRed.png",
+	"frame": {"x":1,"y":1,"w":91,"h":91},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":91,"h":91},
+	"sourceSize": {"w":91,"h":91}
+}],
+"meta": {
+	"app": "https://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "texture_atlas.png",
+	"format": "RGBA8888",
+	"size": {"w":194,"h":177},
+	"scale": "1",
+	"smartupdate": "$TexturePacker:SmartUpdate:f8eacf894bc7bbe418a2e702cc7d1b91:5b4d94ebf3c175a44dd9722bab50ddea:67087b54f7aa7c7f6411022b7ef8a190$"
+}
+}
