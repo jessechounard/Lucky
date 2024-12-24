@@ -1,7 +1,9 @@
 # Lucky
 This is my pile of tools (one might call it a framework) for building games in C++. Everything here is experimental and prone to regular API breakage and redesign.
 
-If you want something more stable (and actually good) I recommend checkout out [raylib](www.raylib.com).
+If you want something more stable (and actually good) I recommend checking out [raylib](www.raylib.com).
+
+Here are some basic [code examples](Source/Examples/).
 
 ## Creating examples
 Run the following command to generage a new example project at cpp file:
