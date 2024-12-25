@@ -1,6 +1,11 @@
 # Examples
 This folder contains some examples of how the various features of Lucky are used.
 
+Note: To run these examples in Visual Studio, you'll need to set the working directory.  
+Set `Project Properties` > `Debugging` > `Working Directory` to the value `$(ProjectDir)../../../Assets/Examples`
+
+Alternatively, you can copy the assets each example is trying to load into the folder where the vcxproj file lives. (Because `$(ProjectDir)` is the default working directory.)
+
 ## Graphics
 
 ### Clear Screen
@@ -18,3 +23,7 @@ Build on the Texture example by loading up a [TextureAtlas](../Include/Lucky/Gra
 ### Shaders
 Create a [ShaderProgram](../Include/Lucky/Graphics/ShaderProgram.hpp) from a VertexShader and FragmentShader, then render to the screen using that program. The fragment shader used here is from this [very cool tutorial](https://youtu.be/f4s1h2YETNY?si=0uaeJnbRjqDrODS_). (Go watch that thing, it's awesome!)  
 [![A trippy neon pattern](screenshots/04-Shaders-thumb.jpg)](screenshots/04-Shaders.jpg)
+
+### Fonts
+This example loads a truetype [Font](../Include/Lucky/Graphics/Font.hpp), creates a font entry with oversampling enabled, and renders a string. Font rendering is super barebones right now. It supports texture packing, oversampling, and kerning, because those are included in [stb_truetype](https://github.com/nothings/stb/blob/master/stb_truetype.h), but some layout functionality is definitely needed. The font used in this example is [Raleway Normal](https://www.fontsquirrel.com/fonts/raleway).   
+[![White text on a black background](screenshots/05-Fonts-thumb.jpg)](screenshots/05-Fonts.jpg)
