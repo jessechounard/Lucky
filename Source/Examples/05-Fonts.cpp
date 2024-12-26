@@ -27,7 +27,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 {
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 
-    SDL_SetAppMetadata("Empty Example Project", "1.0", "dev.jessechounard.emptyexample");
+    SDL_SetAppMetadata("Font Example", "1.0", "dev.jessechounard.fonts");
 
     if (!SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
     {
@@ -37,7 +37,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 
     auto attributes = Lucky::GraphicsDevice::PrepareWindowAttributes(Lucky::GraphicsAPI::OpenGL);
 
-    window = SDL_CreateWindow("Empty Example", windowWidth, windowHeight, attributes);
+    window = SDL_CreateWindow("Font Example", windowWidth, windowHeight, attributes);
     if (window == NULL)
     {
         spdlog::error("Failed to create window {}", SDL_GetError());
