@@ -165,6 +165,12 @@
     <ClInclude Include="..\..\Source\Dependencies\stb_image\stb_image.h">
       <Filter>Dependencies\stb_image</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Include\Lucky\Game.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Include\Lucky\LuckyMain.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Source\Source\Audio\Sound.cpp">
@@ -247,6 +253,9 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\Dependencies\stb_image\stb_image.c">
       <Filter>Dependencies\stb_image</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Source\Game.cpp">
+      <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

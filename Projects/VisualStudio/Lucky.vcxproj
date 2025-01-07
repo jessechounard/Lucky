@@ -160,6 +160,7 @@
     <ClInclude Include="..\..\Source\Include\Lucky\Audio\AudioPlayer.hpp" />
     <ClInclude Include="..\..\Source\Include\Lucky\Audio\Sound.hpp" />
     <ClInclude Include="..\..\Source\Include\Lucky\Audio\Stream.hpp" />
+    <ClInclude Include="..\..\Source\Include\Lucky\Game.hpp" />
     <ClInclude Include="..\..\Source\Include\Lucky\Graphics\BatchRenderer.hpp" />
     <ClInclude Include="..\..\Source\Include\Lucky\Graphics\BloomEffect.hpp" />
     <ClInclude Include="..\..\Source\Include\Lucky\Graphics\Camera.hpp" />
@@ -175,6 +176,7 @@
     <ClInclude Include="..\..\Source\Include\Lucky\Input\Gamepad.hpp" />
     <ClInclude Include="..\..\Source\Include\Lucky\Input\Keyboard.hpp" />
     <ClInclude Include="..\..\Source\Include\Lucky\Input\Mouse.hpp" />
+    <ClInclude Include="..\..\Source\Include\Lucky\LuckyMain.hpp" />
     <ClInclude Include="..\..\Source\Include\Lucky\Math\Collision.hpp" />
     <ClInclude Include="..\..\Source\Include\Lucky\Math\MathConstants.hpp" />
     <ClInclude Include="..\..\Source\Include\Lucky\Math\MathHelpers.hpp" />
@@ -196,6 +198,7 @@
     <ClCompile Include="..\..\Source\Source\Audio\AudioPlayer.cpp" />
     <ClCompile Include="..\..\Source\Source\Audio\Sound.cpp" />
     <ClCompile Include="..\..\Source\Source\Audio\Stream.cpp" />
+    <ClCompile Include="..\..\Source\Source\Game.cpp" />
     <ClCompile Include="..\..\Source\Source\Graphics\BatchRenderer.cpp" />
     <ClCompile Include="..\..\Source\Source\Graphics\BloomEffect.cpp" />
     <ClCompile Include="..\..\Source\Source\Graphics\Camera.cpp" />
