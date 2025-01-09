@@ -1,5 +1,7 @@
 #pragma once
 
+#include <deque>
+#include <map>
 #include <memory>
 #include <stdint.h>
 #include <string>
@@ -7,14 +9,22 @@
 #include <SDL3/SDL.h>
 
 #include <Lucky/Graphics/GraphicsDevice.hpp>
+#include <Lucky/Input/Gamepad.hpp>
 
 namespace Lucky
 {
 	struct GameData
 	{
+        // graphics data
         SDL_Window *window;
         std::shared_ptr<Lucky::GraphicsDevice> graphicsDevice;
+
+        // input data
+        std::map<SDL_JoystickID, GamepadState> gamepadStates;
+        std::deque<GamepadEvent> gamepadEvents;
+
         uint64_t currentTime;
+
         void *userData;
 	};
 

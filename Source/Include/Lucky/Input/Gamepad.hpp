@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stdint.h>
 
 #include <SDL3/SDL_events.h>
@@ -5,6 +7,8 @@
 
 namespace Lucky
 {
+    struct GameData;
+
     enum class GamepadEventType
     {
         ButtonPressed,
@@ -34,9 +38,8 @@ namespace Lucky
         int16_t axes[SDL_GAMEPAD_AXIS_COUNT];
     };
 
-    bool GetGamepadEvent(GamepadEvent *event);
-
-    SDL_Gamepad *GetGamepadFromJoystickId(SDL_JoystickID joystickId);
-    bool GetGamepadState(SDL_JoystickID joystickId, GamepadState *gamepadState);
+    void GetInitialGamepadState(SDL_Gamepad *gamepad, bool *buttons, int buttonCount, int16_t *axes, int axisCount);
+    bool GetGamepadState(GameData *gameData, SDL_JoystickID id, GamepadState *state);
+    bool FindGamepadButtonPress(GameData *gameData, SDL_JoystickID *id, SDL_GamepadButton button);
 
 } // namespace Lucky
