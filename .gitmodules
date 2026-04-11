@@ -1,0 +1,24 @@
+[submodule "Dependencies/SDL"]
+	path = Dependencies/SDL
+	url = https://github.com/libsdl-org/SDL.git
+[submodule "Dependencies/spdlog"]
+	path = Dependencies/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "Dependencies/harfbuzz"]
+	path = Dependencies/harfbuzz
+	url = https://github.com/harfbuzz/harfbuzz.git
+[submodule "Dependencies/SDL_shadercross"]
+	path = Dependencies/SDL_shadercross
+	url = https://github.com/libsdl-org/SDL_shadercross.git
+[submodule "Dependencies/glm"]
+	path = Dependencies/glm
+	url = https://github.com/g-truc/glm.git
+[submodule "Dependencies/json"]
+	path = Dependencies/json
+	url = https://github.com/nlohmann/json.git
+[submodule "Dependencies/dr_libs"]
+	path = Dependencies/dr_libs
+	url = https://github.com/mackron/dr_libs.git
+[submodule "Dependencies/stb"]
+	path = Dependencies/stb
+	url = https://github.com/nothings/stb.git
