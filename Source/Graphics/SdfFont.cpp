@@ -6,7 +6,7 @@
 
 #include <glm/geometric.hpp>
 #include <hb.h>
-#include <rapidjson/document.h>
+#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
 #include <Lucky/FileSystem.hpp>
@@ -15,23 +15,23 @@
 namespace Lucky {
 
 SdfFont::GlyphData SdfFont::ParseGlyphJson(const void *jsonValue) {
-    auto &g = *static_cast<const rapidjson::Value *>(jsonValue);
+    auto &g = *static_cast<const nlohmann::json *>(jsonValue);
     GlyphData gd{};
-    gd.advance = static_cast<float>(g["advance"].GetDouble());
-    gd.hasGeometry = g.HasMember("planeBounds");
+    gd.advance = g["advance"].get<float>();
+    gd.hasGeometry = g.contains("planeBounds");
 
     if (gd.hasGeometry) {
         auto &pb = g["planeBounds"];
-        gd.planeLeft = static_cast<float>(pb["left"].GetDouble());
-        gd.planeTop = static_cast<float>(pb["top"].GetDouble());
-        gd.planeRight = static_cast<float>(pb["right"].GetDouble());
-        gd.planeBottom = static_cast<float>(pb["bottom"].GetDouble());
+        gd.planeLeft = pb["left"].get<float>();
+        gd.planeTop = pb["top"].get<float>();
+        gd.planeRight = pb["right"].get<float>();
+        gd.planeBottom = pb["bottom"].get<float>();
 
         auto &ab = g["atlasBounds"];
-        gd.atlasLeft = static_cast<float>(ab["left"].GetDouble());
-        gd.atlasTop = static_cast<float>(ab["top"].GetDouble());
-        gd.atlasRight = static_cast<float>(ab["right"].GetDouble());
-        gd.atlasBottom = static_cast<float>(ab["bottom"].GetDouble());
+        gd.atlasLeft = ab["left"].get<float>();
+        gd.atlasTop = ab["top"].get<float>();
+        gd.atlasRight = ab["right"].get<float>();
+        gd.atlasBottom = ab["bottom"].get<float>();
     }
 
     return gd;
@@ -71,47 +71,48 @@ SdfFont::SdfFont(
             throw std::runtime_error("SDF font JSON is empty: " + atlasJsonPath);
         }
 
-        rapidjson::Document doc;
-        auto &parsed = doc.Parse((char *)buffer.data(), buffer.size());
-        if (parsed.HasParseError()) {
+        nlohmann::json doc;
+        try {
+            doc = nlohmann::json::parse(buffer);
+        } catch (const nlohmann::json::parse_error &) {
             spdlog::error("JSON parse error in SDF font: {}", atlasJsonPath);
             throw std::runtime_error("JSON parse error in SDF font: " + atlasJsonPath);
         }
 
         // Atlas metadata
         auto &atlas = doc["atlas"];
-        pxRange = static_cast<float>(atlas["distanceRange"].GetDouble());
-        atlasWidth = static_cast<float>(atlas["width"].GetInt());
-        atlasHeight = static_cast<float>(atlas["height"].GetInt());
+        pxRange = atlas["distanceRange"].get<float>();
+        atlasWidth = atlas["width"].get<float>();
+        atlasHeight = atlas["height"].get<float>();
 
         // The JSON may be in single-font format (top-level "metrics"/"glyphs") or
         // multi-input format with "variants" array (from msdf-atlas-gen -and).
-        if (doc.HasMember("variants")) {
+        if (doc.contains("variants")) {
             // Multi-input format: each variant has its own metrics/glyphs
             auto &variants = doc["variants"];
             bool metricsLoaded = false;
 
-            for (auto &variant : variants.GetArray()) {
-                if (!metricsLoaded && variant.HasMember("metrics")) {
+            for (auto &variant : variants) {
+                if (!metricsLoaded && variant.contains("metrics")) {
                     auto &metrics = variant["metrics"];
-                    lineHeight = static_cast<float>(metrics["lineHeight"].GetDouble());
-                    ascender = static_cast<float>(metrics["ascender"].GetDouble());
-                    descender = static_cast<float>(metrics["descender"].GetDouble());
+                    lineHeight = metrics["lineHeight"].get<float>();
+                    ascender = metrics["ascender"].get<float>();
+                    descender = metrics["descender"].get<float>();
                     metricsLoaded = true;
                 }
 
-                if (variant.HasMember("glyphs")) {
-                    for (auto &g : variant["glyphs"].GetArray()) {
+                if (variant.contains("glyphs")) {
+                    for (auto &g : variant["glyphs"]) {
                         GlyphData gd = ParseGlyphJson(&g);
 
-                        if (g.HasMember("unicode")) {
-                            uint32_t unicode = g["unicode"].GetUint();
+                        if (g.contains("unicode")) {
+                            uint32_t unicode = g["unicode"].get<uint32_t>();
                             hb_codepoint_t glyphId;
                             if (hb_font_get_nominal_glyph(hbFont, unicode, &glyphId)) {
                                 glyphs[glyphId] = gd;
                             }
-                        } else if (g.HasMember("index")) {
-                            uint32_t glyphId = g["index"].GetUint();
+                        } else if (g.contains("index")) {
+                            uint32_t glyphId = g["index"].get<uint32_t>();
                             glyphs[glyphId] = gd;
                         }
                     }
@@ -120,13 +121,13 @@ SdfFont::SdfFont(
         } else {
             // Single-font format (backward compatible)
             auto &metrics = doc["metrics"];
-            lineHeight = static_cast<float>(metrics["lineHeight"].GetDouble());
-            ascender = static_cast<float>(metrics["ascender"].GetDouble());
-            descender = static_cast<float>(metrics["descender"].GetDouble());
+            lineHeight = metrics["lineHeight"].get<float>();
+            ascender = metrics["ascender"].get<float>();
+            descender = metrics["descender"].get<float>();
 
             auto &glyphArray = doc["glyphs"];
-            for (auto &g : glyphArray.GetArray()) {
-                uint32_t unicode = g["unicode"].GetUint();
+            for (auto &g : glyphArray) {
+                uint32_t unicode = g["unicode"].get<uint32_t>();
                 GlyphData gd = ParseGlyphJson(&g);
 
                 hb_codepoint_t glyphId;

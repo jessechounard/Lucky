@@ -1,4 +1,4 @@
-#include <Lucky/Input/Mouse.hpp>
+#include <Lucky/Mouse.hpp>
 
 const Lucky::MouseState &GetMouseState_impl();
 

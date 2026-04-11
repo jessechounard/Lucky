@@ -1,7 +1,7 @@
 #include <fstream>
 #include <stdexcept>
 
-#include <rapidjson/document.h>
+#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
 #include <Lucky/TextureAtlas.hpp>
@@ -32,33 +32,34 @@ TextureAtlas::TextureAtlas(uint8_t *buffer, uint64_t bufferLength, const std::st
 }
 
 void TextureAtlas::Initialize(uint8_t *buffer, uint64_t bufferLength, const std::string &fileName) {
-    rapidjson::Document jsonDocument;
+    nlohmann::json jsonDocument;
 
-    auto &x = jsonDocument.Parse((char *)buffer, (size_t)bufferLength);
-    if (x.HasParseError()) {
+    try {
+        jsonDocument = nlohmann::json::parse(buffer, buffer + bufferLength);
+    } catch (const nlohmann::json::parse_error &) {
         spdlog::error("JSON parsing failed for file: {}", fileName);
         throw std::runtime_error("JSON parsing failed for file: " + fileName);
     }
 
     auto &frames = jsonDocument["frames"];
 
-    for (auto &frame : frames.GetArray()) {
-        std::string name = frame["filename"].GetString();
+    for (auto &frame : frames) {
+        std::string name = frame["filename"].get<std::string>();
 
         TextureRegion textureRegion;
-        textureRegion.bounds.x = frame["frame"]["x"].GetInt();
-        textureRegion.bounds.y = frame["frame"]["y"].GetInt();
-        textureRegion.bounds.width = frame["frame"]["w"].GetInt();
-        textureRegion.bounds.height = frame["frame"]["h"].GetInt();
-        textureRegion.rotated = frame["rotated"].GetBool();
+        textureRegion.bounds.x = frame["frame"]["x"].get<int>();
+        textureRegion.bounds.y = frame["frame"]["y"].get<int>();
+        textureRegion.bounds.width = frame["frame"]["w"].get<int>();
+        textureRegion.bounds.height = frame["frame"]["h"].get<int>();
+        textureRegion.rotated = frame["rotated"].get<bool>();
 
-        float spriteSourceSizeX = frame["spriteSourceSize"]["x"].GetFloat();
-        float spriteSourceSizeY = frame["spriteSourceSize"]["y"].GetFloat();
-        float spriteSourceSizeW = frame["spriteSourceSize"]["w"].GetFloat();
-        float spriteSourceSizeH = frame["spriteSourceSize"]["h"].GetFloat();
+        float spriteSourceSizeX = frame["spriteSourceSize"]["x"].get<float>();
+        float spriteSourceSizeY = frame["spriteSourceSize"]["y"].get<float>();
+        float spriteSourceSizeW = frame["spriteSourceSize"]["w"].get<float>();
+        float spriteSourceSizeH = frame["spriteSourceSize"]["h"].get<float>();
 
-        float sourceSizeW = frame["sourceSize"]["w"].GetFloat();
-        float sourceSizeH = frame["sourceSize"]["h"].GetFloat();
+        float sourceSizeW = frame["sourceSize"]["w"].get<float>();
+        float sourceSizeH = frame["sourceSize"]["h"].get<float>();
 
         textureRegion.originTopLeft.x = -spriteSourceSizeX / spriteSourceSizeW;
         textureRegion.originTopLeft.y = -spriteSourceSizeY / spriteSourceSizeH;
@@ -72,9 +73,9 @@ void TextureAtlas::Initialize(uint8_t *buffer, uint64_t bufferLength, const std:
             (textureRegion.originTopLeft + textureRegion.originBottomRight) / 2.0f;
 
         glm::vec2 pivot = {0.5f, 0.5f};
-        if (frame.HasMember("pivot")) {
-            pivot.x = frame["pivot"]["x"].GetFloat();
-            pivot.y = frame["pivot"]["y"].GetFloat();
+        if (frame.contains("pivot")) {
+            pivot.x = frame["pivot"]["x"].get<float>();
+            pivot.y = frame["pivot"]["y"].get<float>();
         }
 
         textureRegion.pivot.x =
@@ -91,7 +92,7 @@ void TextureAtlas::Initialize(uint8_t *buffer, uint64_t bufferLength, const std:
     }
 
     auto &meta = jsonDocument["meta"];
-    texturePath = CombinePaths(GetPathName(fileName), meta["image"].GetString());
+    texturePath = CombinePaths(GetPathName(fileName), meta["image"].get<std::string>());
 }
 
 bool TextureAtlas::Contains(const std::string &textureName) const {

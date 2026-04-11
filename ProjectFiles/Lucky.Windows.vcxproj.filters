@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Audio">
+      <UniqueIdentifier>{B1C2D3E4-0001-0001-0001-000000000001}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Graphics">
+      <UniqueIdentifier>{B1C2D3E4-0001-0001-0001-000000000002}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Input">
+      <UniqueIdentifier>{B1C2D3E4-0001-0001-0001-000000000003}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Math">
+      <UniqueIdentifier>{B1C2D3E4-0001-0001-0001-000000000004}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Utility">
+      <UniqueIdentifier>{B1C2D3E4-0001-0001-0001-000000000005}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Include">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Dependencies">
+      <UniqueIdentifier>{B1C2D3E4-0001-0001-0001-000000000006}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Dependencies\HarfBuzz">
+      <UniqueIdentifier>{B1C2D3E4-0001-0001-0001-000000000007}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{B1C2D3E4-0001-0001-0001-000000000008}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\Source\Audio\AudioPlayer.cpp">
+      <Filter>Source\Audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Audio\Sound.cpp">
+      <Filter>Source\Audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Audio\Stream.cpp">
+      <Filter>Source\Audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Graphics\BatchRenderer.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Graphics\Color.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Graphics\DebugDraw.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Graphics\Font.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Graphics\GraphicsDevice.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Graphics\ParticleEmitter.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Graphics\SdfFont.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Graphics\Shader.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Graphics\SlugFont.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Graphics\SlugRenderer.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Graphics\SpriteAnimation.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Graphics\Texture.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Graphics\TextureAtlas.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Input\Gamepad.cpp">
+      <Filter>Source\Input</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Input\Input.cpp">
+      <Filter>Source\Input</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Input\Keyboard.cpp">
+      <Filter>Source\Input</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Input\Mouse.cpp">
+      <Filter>Source\Input</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Math\Collision.cpp">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Math\MathConstants.cpp">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Math\MathHelpers.cpp">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Utility\FileSystem.cpp">
+      <Filter>Source\Utility</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Dependencies\implementations.cpp">
+      <Filter>Dependencies</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Dependencies\harfbuzz\src\harfbuzz.cc">
+      <Filter>Dependencies\HarfBuzz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Dependencies\harfbuzz\src\hb-gpu.cc">
+      <Filter>Dependencies\HarfBuzz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Dependencies\harfbuzz\src\hb-gpu-draw.cc">
+      <Filter>Dependencies\HarfBuzz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Dependencies\harfbuzz\src\hb-gpu-shaders.cc">
+      <Filter>Dependencies\HarfBuzz</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\Include\Lucky\AudioPlayer.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\BatchRenderer.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\BlendState.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Collections.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Collision.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Color.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\DebugDraw.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\FileSystem.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Font.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Gamepad.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\GraphicsDevice.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Input.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Keyboard.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\MathConstants.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\MathHelpers.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Mouse.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\ParticleEmitter.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Random.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Rectangle.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\SdfFont.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Shader.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\SlugFont.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\SlugRenderer.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Sound.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\SpriteAnimation.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\StateMachine.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Stream.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Texture.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\TextureAtlas.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Types.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Vertex.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\VertexBuffer.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Shaders\msdf_text.frag.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\Shaders\particle_render.frag.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\Shaders\particle_render.vert.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\Shaders\particle_update.comp.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\Shaders\slug.frag.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\Shaders\slug.vert.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\Shaders\sprite.frag.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\Shaders\sprite.vert.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
+  </ItemGroup>
+</Project>

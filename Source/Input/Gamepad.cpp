@@ -1,6 +1,6 @@
 #include <SDL3/SDL_joystick.h>
 
-#include <Lucky/Input/Gamepad.hpp>
+#include <Lucky/Gamepad.hpp>
 
 bool GetGamepadEvent_impl(Lucky::GamepadEvent *event);
 SDL_Gamepad *GetGamepadFromJoystickId_impl(SDL_JoystickID joystickId);

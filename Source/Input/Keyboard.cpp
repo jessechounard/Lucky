@@ -1,4 +1,4 @@
-#include <Lucky/Input/Keyboard.hpp>
+#include <Lucky/Keyboard.hpp>
 
 const Lucky::KeyboardState &GetKeyboardState_impl();
 
