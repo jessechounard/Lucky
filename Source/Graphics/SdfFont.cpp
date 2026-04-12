@@ -1,15 +1,16 @@
 #include <cmath>
-
-#include <SDL3/SDL_assert.h>
+#include <filesystem>
 #include <fstream>
 #include <stdexcept>
+
+#include <SDL3/SDL_assert.h>
+#include <SDL3/SDL_filesystem.h>
 
 #include <glm/geometric.hpp>
 #include <hb.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
-#include <Lucky/FileSystem.hpp>
 #include <Lucky/SdfFont.hpp>
 
 namespace Lucky {
@@ -138,13 +139,14 @@ SdfFont::SdfFont(
         }
 
         // Load atlas texture (derive PNG path from JSON path)
-        std::string pngPath = RemoveExtension(atlasJsonPath) + ".png";
+        std::string pngPath =
+            std::filesystem::path(atlasJsonPath).replace_extension(".png").generic_string();
         atlasTexture = std::make_unique<Texture>(graphicsDevice, pngPath, TextureFilter::Linear);
 
         // Load MSDF shader
-        std::string basePath = GetBasePath();
+        std::filesystem::path basePath = SDL_GetBasePath();
         shader = std::make_unique<Shader>(graphicsDevice,
-            CombinePaths(basePath, "Content/Shaders/msdf_text.frag"),
+            (basePath / "Content/Shaders/msdf_text.frag").generic_string(),
             SDL_GPU_SHADERSTAGE_FRAGMENT);
 
     } catch (...) {

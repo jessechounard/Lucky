@@ -16,9 +16,6 @@
     <Filter Include="Source\Math">
       <UniqueIdentifier>{B1C2D3E4-0001-0001-0001-000000000004}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\Utility">
-      <UniqueIdentifier>{B1C2D3E4-0001-0001-0001-000000000005}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Include">
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
     </Filter>
@@ -49,9 +46,6 @@
       <Filter>Source\Graphics</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\Graphics\DebugDraw.cpp">
-      <Filter>Source\Graphics</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Source\Graphics\Font.cpp">
       <Filter>Source\Graphics</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\Graphics\GraphicsDevice.cpp">
@@ -102,9 +96,6 @@
     <ClCompile Include="..\Source\Math\MathHelpers.cpp">
       <Filter>Source\Math</Filter>
     </ClCompile>
-    <ClCompile Include="..\Source\Utility\FileSystem.cpp">
-      <Filter>Source\Utility</Filter>
-    </ClCompile>
     <ClCompile Include="..\Dependencies\implementations.cpp">
       <Filter>Dependencies</Filter>
     </ClCompile>
@@ -141,12 +132,6 @@
       <Filter>Include</Filter>
     </ClInclude>
     <ClInclude Include="..\Include\Lucky\DebugDraw.hpp">
-      <Filter>Include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Include\Lucky\FileSystem.hpp">
-      <Filter>Include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Include\Lucky\Font.hpp">
       <Filter>Include</Filter>
     </ClInclude>
     <ClInclude Include="..\Include\Lucky\Gamepad.hpp">

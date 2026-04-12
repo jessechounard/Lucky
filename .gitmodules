@@ -22,3 +22,6 @@
 [submodule "Dependencies/stb"]
 	path = Dependencies/stb
 	url = https://github.com/nothings/stb.git
+[submodule "Dependencies/doctest"]
+	path = Dependencies/doctest
+	url = https://github.com/doctest/doctest.git

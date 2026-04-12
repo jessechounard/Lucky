@@ -2,12 +2,12 @@
 #include <Lucky/SlugFont.hpp>
 #include <Lucky/BlendState.hpp>
 #include <Lucky/GraphicsDevice.hpp>
-#include <Lucky/FileSystem.hpp>
 
 #include <SDL3/SDL.h>
 #include <spdlog/spdlog.h>
 
 #include <cstring>
+#include <filesystem>
 #include <stdexcept>
 
 namespace Lucky {
@@ -17,13 +17,13 @@ SlugRenderer::SlugRenderer(GraphicsDevice &graphicsDevice, uint32_t maxTriangles
 
     SDL_assert(maxTriangles >= 2);
 
-    std::string basePath = GetBasePath();
+    std::filesystem::path basePath = SDL_GetBasePath();
 
     vertexShader = std::make_unique<Shader>(graphicsDevice,
-        CombinePaths(basePath, "Content/Shaders/slug.vert"),
+        (basePath / "Content/Shaders/slug.vert").generic_string(),
         SDL_GPU_SHADERSTAGE_VERTEX);
     fragmentShader = std::make_unique<Shader>(graphicsDevice,
-        CombinePaths(basePath, "Content/Shaders/slug.frag"),
+        (basePath / "Content/Shaders/slug.frag").generic_string(),
         SDL_GPU_SHADERSTAGE_FRAGMENT);
 
     vertices.resize(maxVertices);

@@ -1,11 +1,13 @@
+#include <filesystem>
+
 #include <SDL3/SDL_assert.h>
+#include <SDL3/SDL_filesystem.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <Lucky/BatchRenderer.hpp>
 #include <Lucky/BlendState.hpp>
 #include <Lucky/Color.hpp>
-#include <Lucky/FileSystem.hpp>
 #include <Lucky/GraphicsDevice.hpp>
 #include <Lucky/Shader.hpp>
 #include <Lucky/Texture.hpp>
@@ -24,12 +26,12 @@ BatchRenderer::BatchRenderer(GraphicsDevice &graphicsDevice, uint32_t maximumTri
     maximumVertices = maximumTriangles * 3;
     batchStarted = false;
 
-    std::string basePath = GetBasePath();
+    std::filesystem::path basePath = SDL_GetBasePath();
     vertexShader = std::make_unique<Shader>(graphicsDevice,
-        CombinePaths(basePath, "Content/Shaders/sprite.vert"),
+        (basePath / "Content/Shaders/sprite.vert").generic_string(),
         SDL_GPU_SHADERSTAGE_VERTEX);
     fragmentShader = std::make_unique<Shader>(graphicsDevice,
-        CombinePaths(basePath, "Content/Shaders/sprite.frag"),
+        (basePath / "Content/Shaders/sprite.frag").generic_string(),
         SDL_GPU_SHADERSTAGE_FRAGMENT);
 
     activeFragmentShader = fragmentShader.get();

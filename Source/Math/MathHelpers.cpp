@@ -25,7 +25,7 @@ bool ApproximatelyEqual(float floatA, float floatB, float tolerance) {
 }
 
 bool ApproximatelyZero(float f, float tolerance) {
-    if (std::abs(f) < tolerance) {
+    if (std::abs(f) <= tolerance) {
         return true;
     }
     return false;

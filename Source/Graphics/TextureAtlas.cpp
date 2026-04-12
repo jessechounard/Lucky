@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <fstream>
 #include <stdexcept>
 
@@ -6,7 +7,6 @@
 
 #include <Lucky/TextureAtlas.hpp>
 #include <Lucky/MathHelpers.hpp>
-#include <Lucky/FileSystem.hpp>
 
 namespace Lucky {
 
@@ -92,7 +92,9 @@ void TextureAtlas::Initialize(uint8_t *buffer, uint64_t bufferLength, const std:
     }
 
     auto &meta = jsonDocument["meta"];
-    texturePath = CombinePaths(GetPathName(fileName), meta["image"].get<std::string>());
+    texturePath = (std::filesystem::path(fileName).parent_path() /
+                      meta["image"].get<std::string>())
+                      .generic_string();
 }
 
 bool TextureAtlas::Contains(const std::string &textureName) const {
@@ -111,10 +113,11 @@ TextureRegion TextureAtlas::GetRegion(const std::string &textureName) const {
 }
 
 TextureRegion TextureAtlas::GetRegionNoExt(const std::string &textureName) const {
-    std::string textureNameNoExt = RemoveExtension(textureName);
+    std::filesystem::path textureNameNoExt =
+        std::filesystem::path(textureName).replace_extension();
 
     for (const auto &kvp : dictionary) {
-        if (RemoveExtension(kvp.first) == textureNameNoExt) {
+        if (std::filesystem::path(kvp.first).replace_extension() == textureNameNoExt) {
             return kvp.second;
         }
     }

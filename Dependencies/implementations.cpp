@@ -1,9 +1,5 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
-#define STB_RECT_PACK_IMPLEMENTATION
-#include <stb_rect_pack.h>
-#define STB_TRUETYPE_IMPLEMENTATION
-#include <stb_truetype.h>
 #define DR_WAV_IMPLEMENTATION
 #include <dr_wav.h>
 #define DR_MP3_IMPLEMENTATION
