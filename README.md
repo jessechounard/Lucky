@@ -15,6 +15,20 @@ Requires Visual Studio 2022 (v143 toolset).
 
 The output is a static library (`Lucky.lib`) in `Build/Output/<Configuration>/`.
 
+## Running tests
+
+The `Lucky.Tests` project is a console application that runs the unit tests
+using [doctest](https://github.com/doctest/doctest). After building the
+solution, run:
+
+```
+Build\Output\Debug\Lucky.Tests.exe
+```
+
+You can also set `Lucky.Tests` as the startup project in Visual Studio and run
+it with `F5`. Pass `--help` to see doctest's command-line options (filtering
+by test name, listing tests, etc.).
+
 ## Dependencies
 
 All dependencies are included as git submodules in `Dependencies/`:
@@ -27,6 +41,7 @@ All dependencies are included as git submodules in `Dependencies/`:
 - [nlohmann/json](https://github.com/nlohmann/json) (MIT)
 - [dr_libs](https://github.com/mackron/dr_libs) (Public Domain / MIT-0)
 - [stb](https://github.com/nothings/stb) (MIT / Public Domain)
+- [doctest](https://github.com/doctest/doctest) (MIT) - test only
 - [SquirrelNoise5](Dependencies/SquirrelNoise5.hpp) (CC-BY-3.0 US) - vendored
 
 See [Dependencies/LICENSES.md](Dependencies/LICENSES.md) for full license texts.
