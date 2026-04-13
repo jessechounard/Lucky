@@ -1,12 +1,52 @@
 #include <algorithm>
 #include <limits>
 
+#include <SDL3/SDL_assert.h>
+
 #include <Lucky/Collision.hpp>
 #include <Lucky/MathHelpers.hpp>
 
 namespace Lucky {
 
+namespace {
+
+std::vector<glm::vec2> ComputeCollisionAxes(const std::vector<glm::vec2> &vertices) {
+    std::vector<glm::vec2> axes;
+    axes.reserve(vertices.size());
+
+    size_t n = vertices.size();
+    for (size_t i = 0; i < n; i++) {
+        glm::vec2 edge = vertices[(i + 1) % n] - vertices[i];
+        glm::vec2 normal = glm::normalize(glm::vec2(edge.y, -edge.x));
+        axes.push_back(normal);
+    }
+
+    return axes;
+}
+
+glm::vec2 ComputeCentroid(const std::vector<glm::vec2> &vertices) {
+    glm::vec2 sum{0.0f, 0.0f};
+    for (const auto &v : vertices) {
+        sum += v;
+    }
+    return sum / static_cast<float>(vertices.size());
+}
+
+} // namespace
+
+Collider MakeCollider(std::vector<glm::vec2> vertices) {
+    SDL_assert(vertices.size() >= 3);
+
+    Collider c;
+    c.vertices = std::move(vertices);
+    c.collisionAxes = ComputeCollisionAxes(c.vertices);
+    c.center = ComputeCentroid(c.vertices);
+    return c;
+}
+
 bool FindCollision(const glm::vec2 &point, const Collider &collider, const glm::vec2 &position) {
+    SDL_assert(!collider.collisionAxes.empty());
+
     for (const auto &axis : collider.collisionAxes) {
         float min, max;
         CalculateProjectedInterval(collider.vertices, position, axis, min, max);
@@ -67,6 +107,13 @@ bool FindIntervalIntersection(const Collider &colliderA, const Collider &collide
 bool FindCollision(const Collider &colliderA, const Collider &colliderB,
     const glm::vec2 &relativePosition, const glm::vec2 &relativeVelocity, glm::vec2 &axis,
     float &time) {
+    SDL_assert(!colliderA.collisionAxes.empty());
+    SDL_assert(!colliderB.collisionAxes.empty());
+    SDL_assert(!colliderA.isOneWay ||
+               !ApproximatelyZero(glm::length(colliderA.oneWayDirection)));
+    SDL_assert(!colliderB.isOneWay ||
+               !ApproximatelyZero(glm::length(colliderB.oneWayDirection)));
+
     std::vector<glm::vec2> collisionAxes;
     collisionAxes.reserve(colliderA.collisionAxes.size() + colliderB.collisionAxes.size() + 1);
 
@@ -138,8 +185,11 @@ bool FindCollision(const Collider &colliderA, const Collider &colliderB,
 
 PolygonComponent GetMaximumPolygonComponent(const std::vector<glm::vec2> &vertices,
     const glm::vec2 &direction, int &vertexIndexA, int &vertexIndexB) {
+    SDL_assert(!vertices.empty());
+
     float max = glm::dot(direction, vertices[0]);
     vertexIndexA = 0;
+    vertexIndexB = 0;
     PolygonComponent pc = PolygonComponent::Vertex;
 
     for (size_t i = 1; i < vertices.size(); i++) {
@@ -152,6 +202,7 @@ PolygonComponent GetMaximumPolygonComponent(const std::vector<glm::vec2> &vertic
         } else if (temp > max) {
             max = temp;
             vertexIndexA = (int)i;
+            vertexIndexB = (int)i;
             pc = PolygonComponent::Vertex;
         }
     }

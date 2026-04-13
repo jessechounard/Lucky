@@ -84,6 +84,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\Tests\main.cpp" />
+    <ClCompile Include="..\Tests\Math\CollisionTests.cpp" />
     <ClCompile Include="..\Tests\Math\MathHelpersTests.cpp" />
   </ItemGroup>
   <ItemGroup>
