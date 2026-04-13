@@ -84,8 +84,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\Tests\main.cpp" />
+    <ClCompile Include="..\Tests\Graphics\ColorTests.cpp" />
+    <ClCompile Include="..\Tests\Graphics\TextureAtlasTests.cpp" />
     <ClCompile Include="..\Tests\Math\CollisionTests.cpp" />
     <ClCompile Include="..\Tests\Math\MathHelpersTests.cpp" />
+    <ClCompile Include="..\Tests\Math\RandomTests.cpp" />
+    <ClCompile Include="..\Tests\Utility\CollectionsTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="Lucky.Windows.vcxproj">
