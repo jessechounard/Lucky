@@ -82,6 +82,7 @@
     <ClCompile Include="..\Source\Graphics\ParticleEmitter.cpp" />
     <ClCompile Include="..\Source\Graphics\SdfFont.cpp" />
     <ClCompile Include="..\Source\Graphics\Shader.cpp" />
+    <ClCompile Include="..\Source\Graphics\ShapeRenderer.cpp" />
     <ClCompile Include="..\Source\Graphics\SlugFont.cpp" />
     <ClCompile Include="..\Source\Graphics\SlugRenderer.cpp" />
     <ClCompile Include="..\Source\Graphics\SpriteAnimation.cpp" />
@@ -136,6 +137,7 @@
     <ClInclude Include="..\Include\Lucky\Rectangle.hpp" />
     <ClInclude Include="..\Include\Lucky\SdfFont.hpp" />
     <ClInclude Include="..\Include\Lucky\Shader.hpp" />
+    <ClInclude Include="..\Include\Lucky\ShapeRenderer.hpp" />
     <ClInclude Include="..\Include\Lucky\SlugFont.hpp" />
     <ClInclude Include="..\Include\Lucky\SlugRenderer.hpp" />
     <ClInclude Include="..\Include\Lucky\Sound.hpp" />
@@ -150,14 +152,88 @@
   </ItemGroup>
   <!-- Shader Files -->
   <ItemGroup>
-    <None Include="..\Shaders\msdf_text.frag.hlsl" />
-    <None Include="..\Shaders\particle_render.frag.hlsl" />
-    <None Include="..\Shaders\particle_render.vert.hlsl" />
-    <None Include="..\Shaders\particle_update.comp.hlsl" />
-    <None Include="..\Shaders\slug.frag.hlsl" />
-    <None Include="..\Shaders\slug.vert.hlsl" />
-    <None Include="..\Shaders\sprite.frag.hlsl" />
-    <None Include="..\Shaders\sprite.vert.hlsl" />
+    <None Include="..\Shaders\sdf_primitives.hlsl" />
+    <CustomBuild Include="..\Shaders\msdf_text.frag.hlsl">
+      <FileType>Document</FileType>
+      <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
+shadercross "%(FullPath)" -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"
+shadercross "%(FullPath)" -d DXIL -o "$(OutDir)Content\Shaders\%(Filename).dxil"
+shadercross "%(FullPath)" -d MSL -o "$(OutDir)Content\Shaders\%(Filename).msl"
+shadercross "%(FullPath)" -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"</Command>
+      <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\particle_render.frag.hlsl">
+      <FileType>Document</FileType>
+      <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
+shadercross "%(FullPath)" -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"
+shadercross "%(FullPath)" -d DXIL -o "$(OutDir)Content\Shaders\%(Filename).dxil"
+shadercross "%(FullPath)" -d MSL -o "$(OutDir)Content\Shaders\%(Filename).msl"
+shadercross "%(FullPath)" -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"</Command>
+      <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\particle_render.vert.hlsl">
+      <FileType>Document</FileType>
+      <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
+shadercross "%(FullPath)" -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"
+shadercross "%(FullPath)" -d DXIL -o "$(OutDir)Content\Shaders\%(Filename).dxil"
+shadercross "%(FullPath)" -d MSL -o "$(OutDir)Content\Shaders\%(Filename).msl"
+shadercross "%(FullPath)" -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"</Command>
+      <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\particle_update.comp.hlsl">
+      <FileType>Document</FileType>
+      <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
+shadercross "%(FullPath)" -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"
+shadercross "%(FullPath)" -d DXIL -o "$(OutDir)Content\Shaders\%(Filename).dxil"
+shadercross "%(FullPath)" -d MSL -o "$(OutDir)Content\Shaders\%(Filename).msl"
+shadercross "%(FullPath)" -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"</Command>
+      <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\sdf_outline.frag.hlsl">
+      <FileType>Document</FileType>
+      <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
+shadercross "%(FullPath)" -I "%(RootDir)%(Directory)." -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"
+shadercross "%(FullPath)" -I "%(RootDir)%(Directory)." -d DXIL -o "$(OutDir)Content\Shaders\%(Filename).dxil"
+shadercross "%(FullPath)" -I "%(RootDir)%(Directory)." -d MSL -o "$(OutDir)Content\Shaders\%(Filename).msl"
+shadercross "%(FullPath)" -I "%(RootDir)%(Directory)." -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"</Command>
+      <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\slug.frag.hlsl">
+      <FileType>Document</FileType>
+      <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
+shadercross "%(FullPath)" -I "$(ProjectDir)..\Dependencies\harfbuzz\src" -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"
+shadercross "%(FullPath)" -I "$(ProjectDir)..\Dependencies\harfbuzz\src" -d DXIL -o "$(OutDir)Content\Shaders\%(Filename).dxil"
+shadercross "%(FullPath)" -I "$(ProjectDir)..\Dependencies\harfbuzz\src" -d MSL -o "$(OutDir)Content\Shaders\%(Filename).msl"
+shadercross "%(FullPath)" -I "$(ProjectDir)..\Dependencies\harfbuzz\src" -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"</Command>
+      <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\slug.vert.hlsl">
+      <FileType>Document</FileType>
+      <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
+shadercross "%(FullPath)" -I "$(ProjectDir)..\Dependencies\harfbuzz\src" -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"
+shadercross "%(FullPath)" -I "$(ProjectDir)..\Dependencies\harfbuzz\src" -d DXIL -o "$(OutDir)Content\Shaders\%(Filename).dxil"
+shadercross "%(FullPath)" -I "$(ProjectDir)..\Dependencies\harfbuzz\src" -d MSL -o "$(OutDir)Content\Shaders\%(Filename).msl"
+shadercross "%(FullPath)" -I "$(ProjectDir)..\Dependencies\harfbuzz\src" -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"</Command>
+      <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\sprite.frag.hlsl">
+      <FileType>Document</FileType>
+      <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
+shadercross "%(FullPath)" -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"
+shadercross "%(FullPath)" -d DXIL -o "$(OutDir)Content\Shaders\%(Filename).dxil"
+shadercross "%(FullPath)" -d MSL -o "$(OutDir)Content\Shaders\%(Filename).msl"
+shadercross "%(FullPath)" -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"</Command>
+      <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\sprite.vert.hlsl">
+      <FileType>Document</FileType>
+      <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
+shadercross "%(FullPath)" -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"
+shadercross "%(FullPath)" -d DXIL -o "$(OutDir)Content\Shaders\%(Filename).dxil"
+shadercross "%(FullPath)" -d MSL -o "$(OutDir)Content\Shaders\%(Filename).msl"
+shadercross "%(FullPath)" -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"</Command>
+      <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
+    </CustomBuild>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

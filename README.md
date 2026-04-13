@@ -4,7 +4,19 @@ A C++ game framework built on SDL3 and SDL_GPU.
 
 ## Building
 
-Requires Visual Studio 2022 (v143 toolset).
+### Prerequisites
+
+- **Visual Studio 2022** with the v143 toolset.
+- **`shadercross`** must be on your `PATH`. Lucky's HLSL shaders are
+  cross-compiled to SPIR-V, DXIL, MSL, and JSON reflection at build time
+  using the [`shadercross`](https://github.com/libsdl-org/SDL_shadercross)
+  command-line tool. The easiest way to obtain a Windows binary is from the
+  unofficial nightly build mirror at
+  [nightly.link](https://nightly.link/libsdl-org/SDL_shadercross/workflows/main/main?preview).
+  Download an artifact, extract `shadercross.exe`, and place it in any
+  directory on your `PATH`.
+
+### Building Lucky
 
 1. Clone with submodules:
    ```
@@ -13,7 +25,11 @@ Requires Visual Studio 2022 (v143 toolset).
 
 2. Open `ProjectFiles/Lucky.sln` in Visual Studio 2022 and build.
 
-The output is a static library (`Lucky.lib`) in `Build/Output/<Configuration>/`.
+The static library (`Lucky.lib`) is written to `Build/Output/<Configuration>/`,
+and the compiled shader artifacts to
+`Build/Output/<Configuration>/Content/Shaders/`. Consumer projects link
+against `Lucky.lib` and copy the `Content/Shaders/` directory into their own
+output as a post-build step.
 
 ## Running tests
 

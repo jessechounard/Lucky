@@ -60,6 +60,9 @@
     <ClCompile Include="..\Source\Graphics\Shader.cpp">
       <Filter>Source\Graphics</Filter>
     </ClCompile>
+    <ClCompile Include="..\Source\Graphics\ShapeRenderer.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
     <ClCompile Include="..\Source\Graphics\SlugFont.cpp">
       <Filter>Source\Graphics</Filter>
     </ClCompile>
@@ -170,6 +173,9 @@
     <ClInclude Include="..\Include\Lucky\Shader.hpp">
       <Filter>Include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Include\Lucky\ShapeRenderer.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
     <ClInclude Include="..\Include\Lucky\SlugFont.hpp">
       <Filter>Include</Filter>
     </ClInclude>
@@ -205,29 +211,37 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\Shaders\msdf_text.frag.hlsl">
+    <None Include="..\Shaders\sdf_primitives.hlsl">
       <Filter>Shaders</Filter>
     </None>
-    <None Include="..\Shaders\particle_render.frag.hlsl">
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\Shaders\msdf_text.frag.hlsl">
       <Filter>Shaders</Filter>
-    </None>
-    <None Include="..\Shaders\particle_render.vert.hlsl">
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\particle_render.frag.hlsl">
       <Filter>Shaders</Filter>
-    </None>
-    <None Include="..\Shaders\particle_update.comp.hlsl">
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\particle_render.vert.hlsl">
       <Filter>Shaders</Filter>
-    </None>
-    <None Include="..\Shaders\slug.frag.hlsl">
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\particle_update.comp.hlsl">
       <Filter>Shaders</Filter>
-    </None>
-    <None Include="..\Shaders\slug.vert.hlsl">
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\sdf_outline.frag.hlsl">
       <Filter>Shaders</Filter>
-    </None>
-    <None Include="..\Shaders\sprite.frag.hlsl">
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\slug.frag.hlsl">
       <Filter>Shaders</Filter>
-    </None>
-    <None Include="..\Shaders\sprite.vert.hlsl">
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\slug.vert.hlsl">
       <Filter>Shaders</Filter>
-    </None>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\sprite.frag.hlsl">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\sprite.vert.hlsl">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>
