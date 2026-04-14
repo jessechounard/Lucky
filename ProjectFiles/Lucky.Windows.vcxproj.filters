@@ -45,9 +45,6 @@
     <ClCompile Include="..\Source\Graphics\Color.cpp">
       <Filter>Source\Graphics</Filter>
     </ClCompile>
-    <ClCompile Include="..\Source\Graphics\DebugDraw.cpp">
-      <Filter>Source\Graphics</Filter>
-    </ClCompile>
     <ClCompile Include="..\Source\Graphics\GraphicsDevice.cpp">
       <Filter>Source\Graphics</Filter>
     </ClCompile>
@@ -132,9 +129,6 @@
       <Filter>Include</Filter>
     </ClInclude>
     <ClInclude Include="..\Include\Lucky\Color.hpp">
-      <Filter>Include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Include\Lucky\DebugDraw.hpp">
       <Filter>Include</Filter>
     </ClInclude>
     <ClInclude Include="..\Include\Lucky\Gamepad.hpp">

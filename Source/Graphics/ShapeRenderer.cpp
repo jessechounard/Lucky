@@ -1,18 +1,62 @@
 #include <algorithm>
 #include <cmath>
 
+#include <SDL3/SDL_assert.h>
+
 #include <glm/gtc/constants.hpp>
 
 #include <Lucky/ShapeRenderer.hpp>
 
+// ----------------------------------------------------------------------------
+// Design note: batching and the Begin/End pattern
+//
+// The Begin/End pattern on ShapeRenderer looks like it should collect shapes
+// into a batch and flush them as a single draw call, matching what its host
+// BatchRenderer does for sprites. In the current implementation it does not:
+// every Draw*() method calls EmitQuad(), which in turn calls
+// BatchRenderer.Begin/End internally, flushing one draw call per shape.
+//
+// The reason is that each shape needs unique per-instance values in the
+// fragment-shader uniform buffer (shapeType, halfThickness, count, starRatio,
+// shapeSize, tri[0..2]). A uniform buffer holds one set of values at a time,
+// so two shapes with different parameters cannot live in the same draw call
+// as long as the parameters flow through uniforms.
+//
+// This is acceptable for the intended use case (debug draw, small UI, scenes
+// with tens to low hundreds of shapes). It is not acceptable for thousands
+// of shapes per frame. If ShapeRenderer ever needs to scale further, the
+// plan is roughly:
+//
+//   1. Replace the per-draw uniform buffer with a GPU storage buffer holding
+//      an array of SdfParams structs, one entry per shape instance.
+//   2. Use instanced drawing: issue a single draw call for N shapes, letting
+//      the vertex shader fetch its instance's SdfParams via SV_InstanceID.
+//   3. Update BatchRenderer (or add a new renderer class) to support
+//      instanced draws with per-instance SSBO data.
+//   4. In EmitQuad, append the shape's SdfParams and its quad vertices to
+//      per-frame buffers instead of calling BatchRenderer.Begin/End. Flush
+//      the whole lot in ShapeRenderer::End().
+//   5. Once all of the above is in place, Begin/End actually becomes a batch
+//      scope and the API delivers on its name.
+//
+// Until then, Begin/End is just a state scope that caches the active shader
+// and blend mode. It does not delimit a batch. Callers should assume each
+// Draw*() call costs one draw call, one pipeline bind, and one uniform
+// upload.
+// ----------------------------------------------------------------------------
+
 namespace Lucky {
 
-ShapeRenderer::ShapeRenderer(BatchRenderer &batchRenderer) : batchRenderer(batchRenderer) {
+ShapeRenderer::ShapeRenderer(BatchRenderer &batchRenderer)
+    : batchRenderer(batchRenderer), blendMode(BlendMode::Alpha), transformMatrix(1.0f) {
 }
 
-void ShapeRenderer::Begin(BlendMode blendMode, Shader &shader) {
+void ShapeRenderer::Begin(
+    BlendMode blendMode, Shader &shader, const glm::mat4 &transformMatrix) {
+    SDL_assert(this->shader == nullptr);
     this->blendMode = blendMode;
     this->shader = &shader;
+    this->transformMatrix = transformMatrix;
 }
 
 void ShapeRenderer::End() {
@@ -21,19 +65,27 @@ void ShapeRenderer::End() {
 
 void ShapeRenderer::EmitQuad(
     glm::vec2 center, float quadHalf, float rotation, Color color, const SdfParams &params) {
+    SDL_assert(shader != nullptr);
+
     glm::vec2 xy0 = center - glm::vec2(quadHalf);
     glm::vec2 xy1 = center + glm::vec2(quadHalf);
 
-    batchRenderer.Begin(blendMode, *shader);
+    batchRenderer.Begin(blendMode, *shader, transformMatrix);
     batchRenderer.SetFragmentUniformData(&params, sizeof(params));
     batchRenderer.BatchQuadUV({0, 0}, {1, 1}, xy0, xy1, color, rotation);
     batchRenderer.End();
 }
 
-void ShapeRenderer::DrawLine(glm::vec2 start, glm::vec2 end, Color color, float thickness) {
+void ShapeRenderer::DrawLine(
+    glm::vec2 start, glm::vec2 end, float rotation, Color color, float thickness) {
+    SDL_assert(thickness > 0.0f);
+    SDL_assert(start != end);
+
     // Build a square quad centered at the line's midpoint that contains the
     // entire line plus the stroke padding. The endpoints get stored in
-    // normalized [-1, 1] coordinates relative to that quad.
+    // normalized [-1, 1] coordinates relative to that quad. The optional
+    // rotation is passed through to EmitQuad, which rotates the whole quad
+    // (and therefore the line inside it) around the midpoint.
     glm::vec2 center = (start + end) * 0.5f;
     float halfLength = glm::length(end - start) * 0.5f;
     float quadHalf = halfLength + thickness;
@@ -44,10 +96,13 @@ void ShapeRenderer::DrawLine(glm::vec2 start, glm::vec2 end, Color color, float 
     params.tri[0] = (start - center) / quadHalf;
     params.tri[1] = (end - center) / quadHalf;
 
-    EmitQuad(center, quadHalf, 0, color, params);
+    EmitQuad(center, quadHalf, rotation, color, params);
 }
 
 void ShapeRenderer::DrawCircle(glm::vec2 center, float radius, Color color, float thickness) {
+    SDL_assert(radius > 0.0f);
+    SDL_assert(thickness > 0.0f);
+
     float quadHalf = radius + thickness;
 
     SdfParams params = {};
@@ -60,6 +115,9 @@ void ShapeRenderer::DrawCircle(glm::vec2 center, float radius, Color color, floa
 
 void ShapeRenderer::DrawRectangle(
     glm::vec2 center, glm::vec2 dimensions, float rotation, Color color, float thickness) {
+    SDL_assert(dimensions.x > 0.0f && dimensions.y > 0.0f);
+    SDL_assert(thickness > 0.0f);
+
     glm::vec2 halfExtents = dimensions * 0.5f;
     float maxExtent = std::max(halfExtents.x, halfExtents.y);
     float quadHalf = maxExtent + thickness;
@@ -74,11 +132,14 @@ void ShapeRenderer::DrawRectangle(
 
 void ShapeRenderer::DrawTriangle(
     glm::vec2 p0, glm::vec2 p1, glm::vec2 p2, float rotation, Color color, float thickness) {
+    SDL_assert(thickness > 0.0f);
+
     glm::vec2 triCenter = (p0 + p1 + p2) / 3.0f;
 
     float maxDist = glm::length(p0 - triCenter);
     maxDist = std::max(maxDist, glm::length(p1 - triCenter));
     maxDist = std::max(maxDist, glm::length(p2 - triCenter));
+    SDL_assert(maxDist > 0.0f); // caller passed three coincident points
     float quadHalf = maxDist + thickness;
 
     SdfParams params = {};
@@ -93,6 +154,10 @@ void ShapeRenderer::DrawTriangle(
 
 void ShapeRenderer::DrawDiamond(glm::vec2 center, float width, float height, float rotation,
     Color color, float thickness) {
+    SDL_assert(width > 0.0f);
+    SDL_assert(height > 0.0f);
+    SDL_assert(thickness > 0.0f);
+
     float halfWidth = width * 0.5f;
     float halfHeight = height * 0.5f;
     float maxExtent = std::max(halfWidth, halfHeight);
@@ -108,6 +173,10 @@ void ShapeRenderer::DrawDiamond(glm::vec2 center, float width, float height, flo
 
 void ShapeRenderer::DrawRegularPolygon(glm::vec2 center, float radius, int sides, float rotation,
     Color color, float thickness) {
+    SDL_assert(radius > 0.0f);
+    SDL_assert(sides >= 3);
+    SDL_assert(thickness > 0.0f);
+
     float quadHalf = radius + thickness;
 
     SdfParams params = {};
@@ -121,6 +190,12 @@ void ShapeRenderer::DrawRegularPolygon(glm::vec2 center, float radius, int sides
 
 void ShapeRenderer::DrawStar(glm::vec2 center, float outerRadius, float innerRadius, int points,
     float rotation, Color color, float thickness) {
+    SDL_assert(outerRadius > 0.0f);
+    SDL_assert(innerRadius > 0.0f);
+    SDL_assert(innerRadius <= outerRadius);
+    SDL_assert(points >= 2);
+    SDL_assert(thickness > 0.0f);
+
     float quadHalf = outerRadius + thickness;
 
     // Convert inner/outer ratio to IQ's m parameter
@@ -191,6 +266,7 @@ std::vector<glm::vec2> ShapeRenderer::GetDiamondVertices(
 
 std::vector<glm::vec2> ShapeRenderer::GetRegularPolygonVertices(
     glm::vec2 center, float radius, int sides, float rotation) {
+    SDL_assert(sides >= 3);
     std::vector<glm::vec2> verts;
     verts.reserve(sides);
     float step = glm::two_pi<float>() / sides;
@@ -203,6 +279,7 @@ std::vector<glm::vec2> ShapeRenderer::GetRegularPolygonVertices(
 
 std::vector<glm::vec2> ShapeRenderer::GetStarVertices(
     glm::vec2 center, float outerRadius, float innerRadius, int points, float rotation) {
+    SDL_assert(points >= 2);
     std::vector<glm::vec2> verts;
     verts.reserve(points * 2);
     float step = glm::pi<float>() / points;

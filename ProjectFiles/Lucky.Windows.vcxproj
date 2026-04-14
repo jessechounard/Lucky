@@ -77,7 +77,6 @@
     <ClCompile Include="..\Source\Audio\Stream.cpp" />
     <ClCompile Include="..\Source\Graphics\BatchRenderer.cpp" />
     <ClCompile Include="..\Source\Graphics\Color.cpp" />
-    <ClCompile Include="..\Source\Graphics\DebugDraw.cpp" />
     <ClCompile Include="..\Source\Graphics\GraphicsDevice.cpp" />
     <ClCompile Include="..\Source\Graphics\ParticleEmitter.cpp" />
     <ClCompile Include="..\Source\Graphics\SdfFont.cpp" />
@@ -124,7 +123,6 @@
     <ClInclude Include="..\Include\Lucky\Collections.hpp" />
     <ClInclude Include="..\Include\Lucky\Collision.hpp" />
     <ClInclude Include="..\Include\Lucky\Color.hpp" />
-    <ClInclude Include="..\Include\Lucky\DebugDraw.hpp" />
     <ClInclude Include="..\Include\Lucky\Gamepad.hpp" />
     <ClInclude Include="..\Include\Lucky\GraphicsDevice.hpp" />
     <ClInclude Include="..\Include\Lucky\Input.hpp" />

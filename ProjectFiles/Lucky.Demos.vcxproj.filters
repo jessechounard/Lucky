@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="..\Demos\Source\DemoRegistry.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Demos\Source\Demos\ShapeRendererDemo.cpp">
+      <Filter>Source\Demos</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Demos\Source\main.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\Demos\Source\DemoBase.hpp">
+      <Filter>Source</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Demos\Source\DemoRegistry.hpp">
+      <Filter>Source</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source">
+      <UniqueIdentifier>{8ce9b9db-ce70-47d5-8f92-ed1b38eb58e3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Demos">
+      <UniqueIdentifier>{ac9d2724-151d-4c8c-b604-fccca4d6a8e2}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

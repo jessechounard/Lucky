@@ -12,8 +12,8 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
-    <ProjectGuid>{B2C3D4E5-2345-6789-ABCD-EF0123456789}</ProjectGuid>
-    <RootNamespace>LuckyTests</RootNamespace>
+    <ProjectGuid>{C3D4E5F6-3456-789A-BCDE-F01234567890}</ProjectGuid>
+    <RootNamespace>LuckyDemos</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -41,8 +41,8 @@
   <PropertyGroup>
     <OutDir>$(ProjectDir)..\Build\Output\$(Configuration)\</OutDir>
     <IntDir>$(ProjectDir)..\Build\Intermediate\$(ProjectName)\$(Configuration)\</IntDir>
-    <TargetName>Lucky.Tests</TargetName>
-    <IncludePath>$(ProjectDir)..\Include;$(ProjectDir)..\Dependencies;$(ProjectDir)..\Dependencies\doctest;$(ProjectDir)..\Dependencies\glm;$(ProjectDir)..\Dependencies\SDL\include;$(IncludePath)</IncludePath>
+    <TargetName>Lucky.Demos</TargetName>
+    <IncludePath>$(ProjectDir)..\Include;$(ProjectDir)..\Dependencies;$(ProjectDir)..\Dependencies\glm;$(ProjectDir)..\Dependencies\SDL\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -83,14 +83,13 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\Tests\main.cpp" />
-    <ClCompile Include="..\Tests\Graphics\ColorTests.cpp" />
-    <ClCompile Include="..\Tests\Graphics\ShapeRendererTests.cpp" />
-    <ClCompile Include="..\Tests\Graphics\TextureAtlasTests.cpp" />
-    <ClCompile Include="..\Tests\Math\CollisionTests.cpp" />
-    <ClCompile Include="..\Tests\Math\MathHelpersTests.cpp" />
-    <ClCompile Include="..\Tests\Math\RandomTests.cpp" />
-    <ClCompile Include="..\Tests\Utility\CollectionsTests.cpp" />
+    <ClCompile Include="..\Demos\Source\main.cpp" />
+    <ClCompile Include="..\Demos\Source\DemoRegistry.cpp" />
+    <ClCompile Include="..\Demos\Source\Demos\ShapeRendererDemo.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\Demos\Source\DemoBase.hpp" />
+    <ClInclude Include="..\Demos\Source\DemoRegistry.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="Lucky.Windows.vcxproj">

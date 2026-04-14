@@ -21,7 +21,10 @@ float sdCircle(float2 p, float r) {
 float sdSegment(float2 p, float2 a, float2 b) {
     float2 pa = p - a;
     float2 ba = b - a;
-    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    // Clamp the denominator so a degenerate (zero-length) segment degrades
+    // to the distance from p to the single point a, instead of producing
+    // NaN for every pixel.
+    float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
     return length(pa - ba * h);
 }
 
