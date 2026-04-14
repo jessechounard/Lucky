@@ -60,9 +60,8 @@ inline bool RegisterDemo(const Demo &demo) {
  * The macro expands to a static const variable whose initializer runs before
  * main(), adding the demo to the registry.
  */
-#define LUCKY_DEMO(NAME, DESCRIPTION, CLASS)                                                   \
-    static const bool _luckyAutoReg_##CLASS = LuckyDemos::detail::RegisterDemo(                \
-        LuckyDemos::Demo{NAME, DESCRIPTION, [](SDL_Window *window)                             \
-                -> std::unique_ptr<LuckyDemos::DemoBase> {                                     \
-            return std::make_unique<CLASS>(window);                                            \
+#define LUCKY_DEMO(NAME, DESCRIPTION, CLASS)                                                       \
+    static const bool _luckyAutoReg_##CLASS = LuckyDemos::detail::RegisterDemo(LuckyDemos::Demo{   \
+        NAME, DESCRIPTION, [](SDL_Window *window) -> std::unique_ptr<LuckyDemos::DemoBase> {       \
+            return std::make_unique<CLASS>(window);                                                \
         }})

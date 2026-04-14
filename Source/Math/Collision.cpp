@@ -109,10 +109,8 @@ bool FindCollision(const Collider &colliderA, const Collider &colliderB,
     float &time) {
     SDL_assert(!colliderA.collisionAxes.empty());
     SDL_assert(!colliderB.collisionAxes.empty());
-    SDL_assert(!colliderA.isOneWay ||
-               !ApproximatelyZero(glm::length(colliderA.oneWayDirection)));
-    SDL_assert(!colliderB.isOneWay ||
-               !ApproximatelyZero(glm::length(colliderB.oneWayDirection)));
+    SDL_assert(!colliderA.isOneWay || !ApproximatelyZero(glm::length(colliderA.oneWayDirection)));
+    SDL_assert(!colliderB.isOneWay || !ApproximatelyZero(glm::length(colliderB.oneWayDirection)));
 
     std::vector<glm::vec2> collisionAxes;
     collisionAxes.reserve(colliderA.collisionAxes.size() + colliderB.collisionAxes.size() + 1);

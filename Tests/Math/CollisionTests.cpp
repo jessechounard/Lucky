@@ -21,8 +21,7 @@ Collider MakeSquare(float halfExtent) {
 } // namespace
 
 TEST_CASE("CalculateProjectedInterval projects a square onto the X axis") {
-    std::vector<glm::vec2> square = {
-        {-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
+    std::vector<glm::vec2> square = {{-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
     float min, max;
 
     CalculateProjectedInterval(square, glm::vec2{1.0f, 0.0f}, min, max);
@@ -31,8 +30,7 @@ TEST_CASE("CalculateProjectedInterval projects a square onto the X axis") {
 }
 
 TEST_CASE("CalculateProjectedInterval projects a square onto the Y axis") {
-    std::vector<glm::vec2> square = {
-        {-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
+    std::vector<glm::vec2> square = {{-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
     float min, max;
 
     CalculateProjectedInterval(square, glm::vec2{0.0f, 1.0f}, min, max);
@@ -54,8 +52,7 @@ TEST_CASE("CalculateProjectedInterval handles non-axis-aligned triangles") {
 }
 
 TEST_CASE("CalculateProjectedInterval with offset translates before projecting") {
-    std::vector<glm::vec2> square = {
-        {-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
+    std::vector<glm::vec2> square = {{-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
     float min, max;
 
     CalculateProjectedInterval(square, glm::vec2{5.0f, 0.0f}, glm::vec2{1.0f, 0.0f}, min, max);
@@ -70,8 +67,7 @@ TEST_CASE("CalculateProjectedInterval with offset translates before projecting")
 TEST_CASE("GetMaximumPolygonComponent returns an edge when two vertices tie") {
     // A unit square's right edge (vertices 1 and 2) projects to the same max
     // value in the +X direction.
-    std::vector<glm::vec2> square = {
-        {-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
+    std::vector<glm::vec2> square = {{-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
     int a, b;
 
     PolygonComponent pc = GetMaximumPolygonComponent(square, glm::vec2{1.0f, 0.0f}, a, b);
@@ -81,8 +77,7 @@ TEST_CASE("GetMaximumPolygonComponent returns an edge when two vertices tie") {
 }
 
 TEST_CASE("GetMaximumPolygonComponent returns a vertex when one clearly dominates") {
-    std::vector<glm::vec2> square = {
-        {-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
+    std::vector<glm::vec2> square = {{-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
     int a, b;
 
     // Diagonal direction: only (1, 1) at index 2 projects to the max.

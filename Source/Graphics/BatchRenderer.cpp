@@ -62,10 +62,7 @@ void BatchRenderer::Begin(BlendMode blendMode, const glm::mat4 &transformMatrix)
 }
 
 void BatchRenderer::Begin(BlendMode blendMode, Texture &texture, const glm::mat4 &transformMatrix) {
-    if (batchStarted) {
-        spdlog::error("BatchRenderer::Begin called while batch already started.");
-        return;
-    }
+    SDL_assert(!batchStarted);
 
     activeVertices = 0;
     batchStarted = true;
@@ -73,14 +70,14 @@ void BatchRenderer::Begin(BlendMode blendMode, Texture &texture, const glm::mat4
     this->texture = &texture;
     this->activeFragmentShader = fragmentShader.get();
     this->transformMatrix = transformMatrix;
+    fragmentUniformData = nullptr;
+    fragmentUniformSize = 0;
+    fragmentUniformSlot = 0;
 }
 
 void BatchRenderer::Begin(BlendMode blendMode, Texture &texture, Shader &fragmentShader,
     const glm::mat4 &transformMatrix) {
-    if (batchStarted) {
-        spdlog::error("BatchRenderer::Begin called while batch already started.");
-        return;
-    }
+    SDL_assert(!batchStarted);
 
     activeVertices = 0;
     batchStarted = true;
@@ -88,14 +85,14 @@ void BatchRenderer::Begin(BlendMode blendMode, Texture &texture, Shader &fragmen
     this->texture = &texture;
     this->activeFragmentShader = &fragmentShader;
     this->transformMatrix = transformMatrix;
+    fragmentUniformData = nullptr;
+    fragmentUniformSize = 0;
+    fragmentUniformSlot = 0;
 }
 
 void BatchRenderer::Begin(
     BlendMode blendMode, Shader &fragmentShader, const glm::mat4 &transformMatrix) {
-    if (batchStarted) {
-        spdlog::error("BatchRenderer::Begin called while batch already started.");
-        return;
-    }
+    SDL_assert(!batchStarted);
 
     activeVertices = 0;
     batchStarted = true;
@@ -103,13 +100,13 @@ void BatchRenderer::Begin(
     this->texture = nullptr;
     this->activeFragmentShader = &fragmentShader;
     this->transformMatrix = transformMatrix;
+    fragmentUniformData = nullptr;
+    fragmentUniformSize = 0;
+    fragmentUniformSlot = 0;
 }
 
 void BatchRenderer::End() {
-    if (!batchStarted) {
-        spdlog::error("BatchRenderer::End called when batch is not started.");
-        return;
-    }
+    SDL_assert(batchStarted);
 
     if (activeVertices > 0) {
         Flush();
@@ -125,10 +122,7 @@ void BatchRenderer::End() {
 
 void BatchRenderer::BatchQuadUV(const glm::vec2 &uv0, const glm::vec2 &uv1, const glm::vec2 &xy0,
     const glm::vec2 &xy1, const Color &color, float rotation) {
-    if (!batchStarted) {
-        spdlog::error("BatchRenderer::BatchQuadUV called when batch is not started.");
-        return;
-    }
+    SDL_assert(batchStarted);
 
     if (activeVertices + 6 > maximumVertices) {
         Flush();
@@ -219,14 +213,8 @@ void BatchRenderer::BatchQuadUV(const glm::vec2 &uv0, const glm::vec2 &uv1, cons
 void BatchRenderer::BatchQuad(const Rectangle *sourceRectangle, const glm::vec2 &position,
     const float rotation, const glm::vec2 &scale, const glm::vec2 &origin, const UVMode uvMode,
     const Color &color) {
-    if (!batchStarted) {
-        spdlog::error("BatchRenderer::BatchQuad called when batch is not started.");
-        return;
-    }
-    if (texture == nullptr) {
-        spdlog::error("BatchRenderer::BatchQuad called with a null texture.");
-        return;
-    }
+    SDL_assert(batchStarted);
+    SDL_assert(texture != nullptr);
 
     if (activeVertices + 6 > maximumVertices) {
         Flush();
@@ -234,25 +222,14 @@ void BatchRenderer::BatchQuad(const Rectangle *sourceRectangle, const glm::vec2 
 
     float destX = position.x;
     float destY = position.y;
-    float destW = scale.x;
-    float destH = scale.y;
     int textureW = texture->GetWidth();
     int textureH = texture->GetHeight();
-    Rectangle source;
 
-    if (sourceRectangle != nullptr) {
-        source = *sourceRectangle;
-    } else {
-        source = {0, 0, textureW, textureH};
-    }
+    Rectangle source =
+        (sourceRectangle != nullptr) ? *sourceRectangle : Rectangle{0, 0, textureW, textureH};
 
-    if (sourceRectangle != nullptr) {
-        destW *= sourceRectangle->width;
-        destH *= sourceRectangle->height;
-    } else {
-        destW *= textureW;
-        destH *= textureH;
-    }
+    float destW = scale.x * source.width;
+    float destH = scale.y * source.height;
 
     std::pair<float, float> uvs[4];
     if (HasFlag(uvMode, UVMode::RotatedCW90)) {
@@ -398,10 +375,7 @@ void BatchRenderer::BatchQuad(const Rectangle *sourceRectangle, const glm::vec2 
 
 void BatchRenderer::BatchQuad(
     const glm::vec2 corners[4], const glm::vec2 uvs[4], const Color &color) {
-    if (!batchStarted) {
-        spdlog::error("BatchRenderer::BatchQuad called when batch is not started.");
-        return;
-    }
+    SDL_assert(batchStarted);
 
     if (activeVertices + 6 > maximumVertices) {
         Flush();
@@ -456,16 +430,12 @@ void BatchRenderer::BatchQuad(
     activeVertices += 6;
 }
 
-void BatchRenderer::BatchTriangles(Vertex *triangleVertices, const int triangleCount) {
+void BatchRenderer::BatchTriangles(const Vertex *triangleVertices, const int triangleCount) {
+    SDL_assert(batchStarted);
     SDL_assert(triangleVertices != nullptr);
     SDL_assert(triangleCount > 0);
 
-    if (!batchStarted) {
-        spdlog::error("BatchRenderer::BatchTriangles called when batch is not started.");
-        return;
-    }
-
-    Vertex *currentTriangleVertex = triangleVertices;
+    const Vertex *currentTriangleVertex = triangleVertices;
 
     for (int index = 0; index < triangleCount * 3; index += 3) {
         if (activeVertices + 3 > maximumVertices) {

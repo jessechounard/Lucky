@@ -51,8 +51,7 @@ ShapeRenderer::ShapeRenderer(BatchRenderer &batchRenderer)
     : batchRenderer(batchRenderer), blendMode(BlendMode::Alpha), transformMatrix(1.0f) {
 }
 
-void ShapeRenderer::Begin(
-    BlendMode blendMode, Shader &shader, const glm::mat4 &transformMatrix) {
+void ShapeRenderer::Begin(BlendMode blendMode, Shader &shader, const glm::mat4 &transformMatrix) {
     SDL_assert(this->shader == nullptr);
     this->blendMode = blendMode;
     this->shader = &shader;
@@ -152,8 +151,8 @@ void ShapeRenderer::DrawTriangle(
     EmitQuad(triCenter, quadHalf, rotation, color, params);
 }
 
-void ShapeRenderer::DrawDiamond(glm::vec2 center, float width, float height, float rotation,
-    Color color, float thickness) {
+void ShapeRenderer::DrawDiamond(
+    glm::vec2 center, float width, float height, float rotation, Color color, float thickness) {
     SDL_assert(width > 0.0f);
     SDL_assert(height > 0.0f);
     SDL_assert(thickness > 0.0f);
@@ -171,8 +170,8 @@ void ShapeRenderer::DrawDiamond(glm::vec2 center, float width, float height, flo
     EmitQuad(center, quadHalf, rotation, color, params);
 }
 
-void ShapeRenderer::DrawRegularPolygon(glm::vec2 center, float radius, int sides, float rotation,
-    Color color, float thickness) {
+void ShapeRenderer::DrawRegularPolygon(
+    glm::vec2 center, float radius, int sides, float rotation, Color color, float thickness) {
     SDL_assert(radius > 0.0f);
     SDL_assert(sides >= 3);
     SDL_assert(thickness > 0.0f);

@@ -17,9 +17,7 @@ namespace {
 class ShapeRendererDemo : public LuckyDemos::DemoBase {
   public:
     explicit ShapeRendererDemo(SDL_Window *window)
-        : graphicsDevice(window),
-          batchRenderer(graphicsDevice, 1024),
-          shapeRenderer(batchRenderer),
+        : graphicsDevice(window), batchRenderer(graphicsDevice, 1024), shapeRenderer(batchRenderer),
           sdfShader(graphicsDevice,
               (std::filesystem::path(SDL_GetBasePath()) / "Content/Shaders/sdf_outline.frag")
                   .generic_string(),
@@ -95,13 +93,8 @@ class ShapeRendererDemo : public LuckyDemos::DemoBase {
             {spacing * 6, y}, radius, 6, rotation, Lucky::Color::White, thickness);
 
         // 7: Star
-        shapeRenderer.DrawStar({spacing * 7, y},
-            radius,
-            radius * 0.5f,
-            5,
-            rotation,
-            Lucky::Color::Red,
-            thickness);
+        shapeRenderer.DrawStar(
+            {spacing * 7, y}, radius, radius * 0.5f, 5, rotation, Lucky::Color::Red, thickness);
 
         shapeRenderer.End();
 

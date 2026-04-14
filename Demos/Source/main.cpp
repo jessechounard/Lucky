@@ -79,8 +79,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    SDL_Window *window = SDL_CreateWindow(
-        "Lucky.Demos", DefaultWidth, DefaultHeight, SDL_WINDOW_RESIZABLE);
+    SDL_Window *window =
+        SDL_CreateWindow("Lucky.Demos", DefaultWidth, DefaultHeight, SDL_WINDOW_RESIZABLE);
     if (!window) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_CreateWindow failed: %s", SDL_GetError());
         SDL_Quit();
@@ -116,27 +116,26 @@ int main(int argc, char *argv[]) {
         if (request != LuckyDemos::DemoBase::Request::None) {
             currentDemo->ClearPendingRequest();
             switch (request) {
-                case LuckyDemos::DemoBase::Request::Exit:
-                    running = false;
-                    break;
-                case LuckyDemos::DemoBase::Request::NextDemo: {
-                    currentDemo.reset();
-                    currentDemoIndex = (currentDemoIndex + 1) % static_cast<int>(demos.size());
-                    currentDemo = demos[currentDemoIndex].create(window);
-                    SetWindowTitle(window, demos[currentDemoIndex]);
-                    break;
-                }
-                case LuckyDemos::DemoBase::Request::PrevDemo: {
-                    currentDemo.reset();
-                    currentDemoIndex =
-                        (currentDemoIndex + static_cast<int>(demos.size()) - 1) %
-                        static_cast<int>(demos.size());
-                    currentDemo = demos[currentDemoIndex].create(window);
-                    SetWindowTitle(window, demos[currentDemoIndex]);
-                    break;
-                }
-                case LuckyDemos::DemoBase::Request::None:
-                    break;
+            case LuckyDemos::DemoBase::Request::Exit:
+                running = false;
+                break;
+            case LuckyDemos::DemoBase::Request::NextDemo: {
+                currentDemo.reset();
+                currentDemoIndex = (currentDemoIndex + 1) % static_cast<int>(demos.size());
+                currentDemo = demos[currentDemoIndex].create(window);
+                SetWindowTitle(window, demos[currentDemoIndex]);
+                break;
+            }
+            case LuckyDemos::DemoBase::Request::PrevDemo: {
+                currentDemo.reset();
+                currentDemoIndex = (currentDemoIndex + static_cast<int>(demos.size()) - 1) %
+                                   static_cast<int>(demos.size());
+                currentDemo = demos[currentDemoIndex].create(window);
+                SetWindowTitle(window, demos[currentDemoIndex]);
+                break;
+            }
+            case LuckyDemos::DemoBase::Request::None:
+                break;
             }
 
             if (!running) {

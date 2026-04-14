@@ -85,6 +85,7 @@
   <ItemGroup>
     <ClCompile Include="..\Demos\Source\main.cpp" />
     <ClCompile Include="..\Demos\Source\DemoRegistry.cpp" />
+    <ClCompile Include="..\Demos\Source\Demos\HelloTriangleDemo.cpp" />
     <ClCompile Include="..\Demos\Source\Demos\ShapeRendererDemo.cpp" />
   </ItemGroup>
   <ItemGroup>

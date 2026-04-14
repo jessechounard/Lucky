@@ -23,8 +23,8 @@ TEST_CASE("GetRectangleVertices returns corners at rotation zero") {
 }
 
 TEST_CASE("GetRectangleVertices rotates 90 degrees counter-clockwise") {
-    auto verts = ShapeRenderer::GetRectangleVertices(
-        {0.0f, 0.0f}, {2.0f, 2.0f}, MathConstants::Pi / 2.0f);
+    auto verts =
+        ShapeRenderer::GetRectangleVertices({0.0f, 0.0f}, {2.0f, 2.0f}, MathConstants::Pi / 2.0f);
     REQUIRE(verts.size() == 4);
 
     // A unit square rotated 90 degrees CCW: each vertex ends up rotated.

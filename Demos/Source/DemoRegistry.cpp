@@ -22,8 +22,9 @@ void DemoRegistry::Add(const Demo &demo) {
     demos.push_back(demo);
     // Sort by name so the launcher presents demos in a stable order
     // regardless of the linker-dependent static-init order.
-    std::sort(demos.begin(), demos.end(),
-        [](const Demo &a, const Demo &b) { return std::strcmp(a.name, b.name) < 0; });
+    std::sort(demos.begin(), demos.end(), [](const Demo &a, const Demo &b) {
+        return std::strcmp(a.name, b.name) < 0;
+    });
 }
 
 const std::vector<Demo> &DemoRegistry::All() {

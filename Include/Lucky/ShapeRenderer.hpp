@@ -93,8 +93,8 @@ struct ShapeRenderer {
      *                        BatchRenderer's orthographic projection.
      *                        Defaults to the identity matrix.
      */
-    void Begin(BlendMode blendMode, Shader &shader,
-        const glm::mat4 &transformMatrix = glm::mat4(1.0f));
+    void Begin(
+        BlendMode blendMode, Shader &shader, const glm::mat4 &transformMatrix = glm::mat4(1.0f));
 
     /**
      * Ends a group of shape draws.
@@ -119,8 +119,8 @@ struct ShapeRenderer {
      * \param color the color of the line.
      * \param thickness the stroke width in world units. Must be positive.
      */
-    void DrawLine(glm::vec2 start, glm::vec2 end, float rotation, Color color,
-        float thickness = 1.0f);
+    void DrawLine(
+        glm::vec2 start, glm::vec2 end, float rotation, Color color, float thickness = 1.0f);
 
     /**
      * Draws an antialiased circle outline.
@@ -313,8 +313,8 @@ struct ShapeRenderer {
         glm::vec2 tri[3];
     };
 
-    void EmitQuad(glm::vec2 center, float quadHalf, float rotation, Color color,
-        const SdfParams &params);
+    void EmitQuad(
+        glm::vec2 center, float quadHalf, float rotation, Color color, const SdfParams &params);
 
     BatchRenderer &batchRenderer;
     BlendMode blendMode;

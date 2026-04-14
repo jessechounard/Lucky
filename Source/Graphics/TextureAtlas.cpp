@@ -92,8 +92,7 @@ void TextureAtlas::Initialize(uint8_t *buffer, uint64_t bufferLength, const std:
     }
 
     auto &meta = jsonDocument["meta"];
-    texturePath = (std::filesystem::path(fileName).parent_path() /
-                      meta["image"].get<std::string>())
+    texturePath = (std::filesystem::path(fileName).parent_path() / meta["image"].get<std::string>())
                       .generic_string();
 }
 
@@ -113,8 +112,7 @@ TextureRegion TextureAtlas::GetRegion(const std::string &textureName) const {
 }
 
 TextureRegion TextureAtlas::GetRegionNoExt(const std::string &textureName) const {
-    std::filesystem::path textureNameNoExt =
-        std::filesystem::path(textureName).replace_extension();
+    std::filesystem::path textureNameNoExt = std::filesystem::path(textureName).replace_extension();
 
     for (const auto &kvp : dictionary) {
         if (std::filesystem::path(kvp.first).replace_extension() == textureNameNoExt) {

@@ -4,6 +4,9 @@
     <ClCompile Include="..\Demos\Source\DemoRegistry.cpp">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\Demos\Source\Demos\HelloTriangleDemo.cpp">
+      <Filter>Source\Demos</Filter>
+    </ClCompile>
     <ClCompile Include="..\Demos\Source\Demos\ShapeRendererDemo.cpp">
       <Filter>Source\Demos</Filter>
     </ClCompile>
