@@ -1,10 +1,11 @@
+#include <Lucky/GraphicsDevice.hpp>
 #include <Lucky/SlugFont.hpp>
 #include <Lucky/SlugRenderer.hpp>
-#include <Lucky/GraphicsDevice.hpp>
 
 #include <SDL3/SDL.h>
-#include <hb.h>
+#include <SDL3/SDL_assert.h>
 #include <hb-gpu.h>
+#include <hb.h>
 #include <spdlog/spdlog.h>
 
 #include <cstring>
@@ -64,7 +65,7 @@ SlugFont::~SlugFont() {
         hb_blob_destroy(hbBlob);
 }
 
-SlugGlyphInfo SlugFont::encodeGlyph(int glyphIndex) {
+SlugGlyphInfo SlugFont::encodeGlyph(uint32_t glyphIndex) {
     auto it = glyphCache.find(glyphIndex);
     if (it != glyphCache.end())
         return it->second;
@@ -72,7 +73,7 @@ SlugGlyphInfo SlugFont::encodeGlyph(int glyphIndex) {
     SlugGlyphInfo gi = {};
 
     // Get advance width
-    hb_position_t advance = hb_font_get_glyph_h_advance(hbFont, (hb_codepoint_t)glyphIndex);
+    hb_position_t advance = hb_font_get_glyph_h_advance(hbFont, glyphIndex);
     float emScale = 1.0f / (float)upem;
     gi.advanceWidth = advance * emScale;
 
@@ -83,7 +84,7 @@ SlugGlyphInfo SlugFont::encodeGlyph(int glyphIndex) {
     hb_font_get_scale(hbFont, &xScale, &yScale);
     hb_gpu_draw_set_scale(hbGpuDraw, xScale, yScale);
 
-    hb_gpu_draw_glyph(hbGpuDraw, hbFont, (hb_codepoint_t)glyphIndex);
+    hb_gpu_draw_glyph(hbGpuDraw, hbFont, glyphIndex);
 
     hb_glyph_extents_t gpuExtents;
     hb_gpu_draw_get_extents(hbGpuDraw, &gpuExtents);
@@ -101,6 +102,15 @@ SlugGlyphInfo SlugFont::encodeGlyph(int glyphIndex) {
     gi.minY = (float)(gpuExtents.y_bearing + gpuExtents.height);
 
     hb_blob_t *blob = hb_gpu_draw_encode(hbGpuDraw);
+    if (!blob) {
+        // HarfBuzz couldn't produce an encoded blob for this glyph. Cache
+        // it as empty so we don't try again every frame.
+        spdlog::error("hb_gpu_draw_encode returned null for glyph {}", glyphIndex);
+        gi.empty = true;
+        glyphCache[glyphIndex] = gi;
+        return gi;
+    }
+
     unsigned int encodedLength;
     const char *encodedData = hb_blob_get_data(blob, &encodedLength);
 
@@ -194,12 +204,29 @@ void SlugFont::uploadAtlas() {
 }
 
 void SlugFont::PreloadAscii() {
-    for (int c = 32; c < 127; c++) {
+    // Printable ASCII: space (0x20) through tilde (0x7E) inclusive.
+    for (uint32_t c = 0x20; c <= 0x7E; c++) {
         hb_codepoint_t glyphIndex;
-        if (hb_font_get_nominal_glyph(hbFont, (hb_codepoint_t)c, &glyphIndex)) {
-            encodeGlyph((int)glyphIndex);
+        if (hb_font_get_nominal_glyph(hbFont, c, &glyphIndex)) {
+            encodeGlyph(glyphIndex);
         }
     }
+    uploadAtlas();
+}
+
+void SlugFont::PreloadString(const std::string &text) {
+    if (text.empty())
+        return;
+
+    shapeText(text);
+
+    unsigned int glyphCount;
+    hb_glyph_info_t *glyphInfo = hb_buffer_get_glyph_infos(hbBuffer, &glyphCount);
+
+    for (unsigned int i = 0; i < glyphCount; i++) {
+        encodeGlyph(glyphInfo[i].codepoint);
+    }
+
     uploadAtlas();
 }
 
@@ -210,9 +237,39 @@ void SlugFont::shapeText(const std::string &text) {
     hb_shape(hbFont, hbBuffer, nullptr, 0);
 }
 
+glm::vec2 SlugFont::MeasureString(const std::string &text, float fontSize) {
+    if (text.empty() || fontSize <= 0.0f)
+        return {0.0f, 0.0f};
+
+    shapeText(text);
+
+    unsigned int glyphCount;
+    hb_glyph_position_t *glyphPos = hb_buffer_get_glyph_positions(hbBuffer, &glyphCount);
+
+    float hbScale = fontSize / (float)upem;
+    float width = 0.0f;
+    for (unsigned int i = 0; i < glyphCount; i++) {
+        width += glyphPos[i].x_advance * hbScale;
+    }
+
+    return {width, GetLineHeight(fontSize)};
+}
+
+float SlugFont::GetAscent(float fontSize) const {
+    return ascent * fontSize;
+}
+
+float SlugFont::GetDescent(float fontSize) const {
+    return descent * fontSize;
+}
+
+float SlugFont::GetLineHeight(float fontSize) const {
+    return (ascent - descent + lineGap) * fontSize;
+}
+
 void SlugFont::DrawString(SlugRenderer &renderer, const std::string &text, float x, float y,
     float fontSize, const Color &color) {
-    if (text.empty() || fontSize <= 0 || upem == 0)
+    if (text.empty() || fontSize <= 0.0f)
         return;
 
     shapeText(text);
@@ -224,7 +281,7 @@ void SlugFont::DrawString(SlugRenderer &renderer, const std::string &text, float
     // Ensure all shaped glyphs are encoded
     bool needsUpload = false;
     for (unsigned int i = 0; i < glyphCount; i++) {
-        int glyphId = (int)glyphInfo[i].codepoint;
+        uint32_t glyphId = glyphInfo[i].codepoint;
         if (glyphCache.find(glyphId) == glyphCache.end()) {
             encodeGlyph(glyphId);
             needsUpload = true;
@@ -244,7 +301,7 @@ void SlugFont::DrawString(SlugRenderer &renderer, const std::string &text, float
     float baselineY = y;
 
     for (unsigned int i = 0; i < glyphCount; i++) {
-        int glyphId = (int)glyphInfo[i].codepoint;
+        uint32_t glyphId = glyphInfo[i].codepoint;
 
         float xOffset = glyphPos[i].x_offset * hbScale;
         float yOffset = glyphPos[i].y_offset * hbScale;

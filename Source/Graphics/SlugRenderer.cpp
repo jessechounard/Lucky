@@ -1,9 +1,10 @@
-#include <Lucky/SlugRenderer.hpp>
-#include <Lucky/SlugFont.hpp>
 #include <Lucky/BlendState.hpp>
 #include <Lucky/GraphicsDevice.hpp>
+#include <Lucky/SlugFont.hpp>
+#include <Lucky/SlugRenderer.hpp>
 
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_assert.h>
 #include <spdlog/spdlog.h>
 
 #include <cstring>
@@ -131,10 +132,7 @@ void SlugRenderer::CreatePipeline(BlendMode blendMode) {
 }
 
 void SlugRenderer::Begin(BlendMode blendMode, const SlugFont &font, const glm::mat4 &mvp) {
-    if (batchStarted) {
-        spdlog::error("SlugRenderer::Begin called while batch already started.");
-        return;
-    }
+    SDL_assert(!batchStarted);
 
     if (!pipeline || blendMode != currentBlendMode) {
         CreatePipeline(blendMode);
@@ -151,8 +149,7 @@ void SlugRenderer::UpdateAtlas(const SlugFont &font) {
 }
 
 void SlugRenderer::End() {
-    if (!batchStarted)
-        return;
+    SDL_assert(batchStarted);
 
     if (activeVertices > 0) {
         Flush();
@@ -163,8 +160,7 @@ void SlugRenderer::End() {
 }
 
 void SlugRenderer::BatchGlyphQuad(const SlugVertex verts[6]) {
-    if (!batchStarted)
-        return;
+    SDL_assert(batchStarted);
 
     if (activeVertices + 6 > maxVertices) {
         Flush();

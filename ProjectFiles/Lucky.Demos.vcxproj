@@ -59,7 +59,8 @@
       <SubSystem>Console</SubSystem>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /Y /D "$(ProjectDir)$(Platform)\$(Configuration)\SDL3.dll" "$(OutDir)"</Command>
+      <Command>xcopy /Y /D "$(ProjectDir)$(Platform)\$(Configuration)\SDL3.dll" "$(OutDir)"
+xcopy /E /Y /D /I "$(ProjectDir)..\Demos\Content" "$(OutDir)Content\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -79,7 +80,8 @@
       <SubSystem>Console</SubSystem>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /Y /D "$(ProjectDir)$(Platform)\$(Configuration)\SDL3.dll" "$(OutDir)"</Command>
+      <Command>xcopy /Y /D "$(ProjectDir)$(Platform)\$(Configuration)\SDL3.dll" "$(OutDir)"
+xcopy /E /Y /D /I "$(ProjectDir)..\Demos\Content" "$(OutDir)Content\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -87,6 +89,7 @@
     <ClCompile Include="..\Demos\Source\DemoRegistry.cpp" />
     <ClCompile Include="..\Demos\Source\Demos\HelloTriangleDemo.cpp" />
     <ClCompile Include="..\Demos\Source\Demos\ShapeRendererDemo.cpp" />
+    <ClCompile Include="..\Demos\Source\Demos\SlugTextDemo.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Demos\Source\DemoBase.hpp" />
