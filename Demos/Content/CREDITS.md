@@ -11,6 +11,12 @@ asset's original creator and license are listed below.
 Licensed under Creative Commons: By Attribution 4.0
 https://creativecommons.org/licenses/by/4.0/
 
+### laserSmall_002.wav / explosionCrunch_000.wav
+
+From "Sci-Fi Sounds" by Kenney (www.kenney.nl)
+Licensed under Creative Commons Zero (CC0)
+https://creativecommons.org/publicdomain/zero/1.0/
+
 ## Fonts
 
 ### MouseMemoirs-Regular.ttf

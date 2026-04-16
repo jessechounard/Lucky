@@ -48,6 +48,7 @@ int main(int argc, char *argv[]) {
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
+    LuckyDemos::DemoRegistry::Sort();
     const auto &demos = LuckyDemos::DemoRegistry::All();
     if (demos.empty()) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
@@ -83,7 +84,7 @@ int main(int argc, char *argv[]) {
     // Initialize SDL and create the window. The graphics device is created
     // by each individual demo so they can serve as self-contained examples of
     // how to use Lucky.
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_Init failed: %s", SDL_GetError());
         return 1;
     }
@@ -116,13 +117,10 @@ int main(int argc, char *argv[]) {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_EVENT_QUIT) {
                 running = false;
-            } else if (event.type == SDL_EVENT_KEY_DOWN &&
-                       (event.key.key == SDLK_UP || event.key.key == SDLK_DOWN)) {
-                // Launcher-level demo navigation: Up = previous, Down = next.
-                // Intercepted before the demo sees the event so every demo
-                // gets navigation without duplicating the binding.
+            } else if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat &&
+                       (event.key.key == SDLK_PAGEUP || event.key.key == SDLK_PAGEDOWN)) {
                 const int count = static_cast<int>(demos.size());
-                int delta = (event.key.key == SDLK_DOWN) ? 1 : -1;
+                int delta = (event.key.key == SDLK_PAGEDOWN) ? 1 : -1;
                 switchDemo((currentDemoIndex + count + delta) % count);
             } else {
                 currentDemo->HandleEvent(event);

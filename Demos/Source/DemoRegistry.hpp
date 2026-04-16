@@ -33,6 +33,7 @@ struct Demo {
 class DemoRegistry {
   public:
     static void Add(const Demo &demo);
+    static void Sort();
     static const std::vector<Demo> &All();
 };
 

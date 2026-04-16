@@ -33,8 +33,9 @@ struct Color {
     static Color Blue;
     static Color White;
     static Color Black;
+    static Color Yellow;
+    static Color Gray;
     static Color CornflowerBlue;
-    // todo: more predefined colors?
 };
 
 } // namespace Lucky
