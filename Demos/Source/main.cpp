@@ -1,7 +1,12 @@
+#if defined(_WIN32) && defined(_DEBUG)
+#include <crtdbg.h>
+#endif
+
 #include <cstring>
 #include <memory>
 
 #include <SDL3/SDL.h>
+#include <tracy/Tracy.hpp>
 
 #include "DemoBase.hpp"
 #include "DemoRegistry.hpp"
@@ -39,6 +44,10 @@ void SetWindowTitle(SDL_Window *window, const LuckyDemos::Demo &demo) {
 } // namespace
 
 int main(int argc, char *argv[]) {
+#if defined(_WIN32) && defined(_DEBUG)
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
     const auto &demos = LuckyDemos::DemoRegistry::All();
     if (demos.empty()) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
@@ -154,6 +163,8 @@ int main(int argc, char *argv[]) {
         }
 
         currentDemo->Draw();
+
+        FrameMark;
     }
 
     currentDemo.reset();

@@ -1,2 +1,13 @@
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#if defined(_WIN32) && defined(_DEBUG)
+#include <crtdbg.h>
+#endif
+
+#define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
+
+int main(int argc, char *argv[]) {
+#if defined(_WIN32) && defined(_DEBUG)
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
+    return doctest::Context(argc, argv).run();
+}

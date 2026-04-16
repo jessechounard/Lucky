@@ -25,3 +25,6 @@
 [submodule "Dependencies/doctest"]
 	path = Dependencies/doctest
 	url = https://github.com/doctest/doctest.git
+[submodule "Dependencies/tracy"]
+	path = Dependencies/tracy
+	url = https://github.com/wolfpld/tracy.git
