@@ -91,6 +91,13 @@ int main(int argc, char *argv[]) {
     std::unique_ptr<LuckyDemos::DemoBase> currentDemo = demos[currentDemoIndex].create(window);
     SetWindowTitle(window, demos[currentDemoIndex]);
 
+    auto switchDemo = [&](int newIndex) {
+        currentDemo.reset();
+        currentDemoIndex = newIndex;
+        currentDemo = demos[currentDemoIndex].create(window);
+        SetWindowTitle(window, demos[currentDemoIndex]);
+    };
+
     uint64_t previousTicks = SDL_GetPerformanceCounter();
     const double ticksPerSecond = static_cast<double>(SDL_GetPerformanceFrequency());
 
@@ -100,6 +107,14 @@ int main(int argc, char *argv[]) {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_EVENT_QUIT) {
                 running = false;
+            } else if (event.type == SDL_EVENT_KEY_DOWN &&
+                       (event.key.key == SDLK_UP || event.key.key == SDLK_DOWN)) {
+                // Launcher-level demo navigation: Up = previous, Down = next.
+                // Intercepted before the demo sees the event so every demo
+                // gets navigation without duplicating the binding.
+                const int count = static_cast<int>(demos.size());
+                int delta = (event.key.key == SDLK_DOWN) ? 1 : -1;
+                switchDemo((currentDemoIndex + count + delta) % count);
             } else {
                 currentDemo->HandleEvent(event);
             }
@@ -120,18 +135,13 @@ int main(int argc, char *argv[]) {
                 running = false;
                 break;
             case LuckyDemos::DemoBase::Request::NextDemo: {
-                currentDemo.reset();
-                currentDemoIndex = (currentDemoIndex + 1) % static_cast<int>(demos.size());
-                currentDemo = demos[currentDemoIndex].create(window);
-                SetWindowTitle(window, demos[currentDemoIndex]);
+                const int count = static_cast<int>(demos.size());
+                switchDemo((currentDemoIndex + 1) % count);
                 break;
             }
             case LuckyDemos::DemoBase::Request::PrevDemo: {
-                currentDemo.reset();
-                currentDemoIndex = (currentDemoIndex + static_cast<int>(demos.size()) - 1) %
-                                   static_cast<int>(demos.size());
-                currentDemo = demos[currentDemoIndex].create(window);
-                SetWindowTitle(window, demos[currentDemoIndex]);
+                const int count = static_cast<int>(demos.size());
+                switchDemo((currentDemoIndex + count - 1) % count);
                 break;
             }
             case LuckyDemos::DemoBase::Request::None:
