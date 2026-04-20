@@ -197,11 +197,26 @@ struct BatchRenderer {
         const glm::vec2 &xy1, const Color &color, float rotation = 0.0f);
 
     /**
-     * Appends a texture-sourced quad to the current batch.
+     * Appends a sprite-oriented textured quad to the current batch.
      *
-     * Convenience overload that computes UVs from a sub-rectangle of the
-     * bound texture, scales and positions the destination quad, and
-     * optionally rotates, flips, or transposes the UVs.
+     * High-level "draw a sprite" entry point: computes UVs from a
+     * sub-rectangle of the bound texture, positions, scales, rotates, and
+     * pivots the destination quad, and corrects for the Y-up-screen vs
+     * Y-down-texture orientation mismatch so the pixels appear upright.
+     *
+     * # Orientation
+     *
+     * BatchRenderer uses Y-up pixel coordinates while texture rows are
+     * stored Y-down (row 0 at the top of the image). This method applies a
+     * V flip internally so the default `uvMode` produces an upright sprite
+     * when rendering directly to the swapchain. The symbolic flag names in
+     * `UVMode` describe the *visible* result: `FlipVertical` makes the
+     * sprite appear upside-down, `FlipHorizontal` mirrors it left-to-right.
+     *
+     * The raw overloads (`BatchQuad`, `BatchQuadUV`, `BatchTriangles`) pass
+     * caller-supplied UVs through unchanged — no automatic flip — so a
+     * caller composing its own UV rectangles is responsible for whichever
+     * orientation it wants.
      *
      * \param sourceRectangle the source sub-rectangle in texture pixels,
      *                        or `nullptr` to use the whole texture.
@@ -212,13 +227,14 @@ struct BatchRenderer {
      * \param origin the pivot point in [0, 1] x [0, 1]. (0, 0) means the
      *               quad's lower-left corner is at `position`; (0.5, 0.5)
      *               means `position` is the center.
-     * \param uvMode flags that flip or rotate the UV coordinates.
+     * \param uvMode flags that flip or rotate the UV coordinates. See
+     *               Orientation above for the sense of each flip.
      * \param color the color applied uniformly to all four vertices.
      *
      * \note Must not be called when the batch was started without a
      *       texture (the shader-only Begin overload).
      */
-    void BatchQuad(const Rectangle *sourceRectangle, const glm::vec2 &position,
+    void BatchSprite(const Rectangle *sourceRectangle, const glm::vec2 &position,
         const float rotation, const glm::vec2 &scale, const glm::vec2 &origin, const UVMode uvMode,
         const Color &color);
 

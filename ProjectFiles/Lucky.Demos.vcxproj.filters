@@ -13,6 +13,9 @@
     <ClCompile Include="..\Demos\Source\Demos\SlugTextDemo.cpp">
       <Filter>Source\Demos</Filter>
     </ClCompile>
+    <ClCompile Include="..\Demos\Source\Demos\SpriteAnimationDemo.cpp">
+      <Filter>Source\Demos</Filter>
+    </ClCompile>
     <ClCompile Include="..\Demos\Source\main.cpp">
       <Filter>Source</Filter>
     </ClCompile>

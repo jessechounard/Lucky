@@ -45,7 +45,7 @@ TEST_CASE("TextureAtlas parses a simple TexturePacker JSON") {
 
     TextureAtlas atlas = ParseAtlas(json);
 
-    CHECK(atlas.dictionary.size() == 2);
+    CHECK(atlas.Regions().size() == 2);
     CHECK(atlas.Contains("idle"));
     CHECK(atlas.Contains("run"));
     CHECK_FALSE(atlas.Contains("missing"));
@@ -190,6 +190,42 @@ TEST_CASE("TextureAtlas throws on malformed JSON") {
     CHECK_THROWS_AS(ParseAtlas(json), std::runtime_error);
 }
 
+TEST_CASE("TextureAtlas throws when frames field is missing") {
+    const std::string json = R"({"meta": {"image": "player.png"}})";
+    CHECK_THROWS_AS(ParseAtlas(json), std::runtime_error);
+}
+
+TEST_CASE("TextureAtlas throws when meta.image is missing") {
+    const std::string json = R"({"frames": [], "meta": {}})";
+    CHECK_THROWS_AS(ParseAtlas(json), std::runtime_error);
+}
+
+TEST_CASE("TextureAtlas throws when a frame lacks required subfields") {
+    const std::string json = R"({
+        "frames": [
+            {"filename": "partial", "frame": {"x": 0, "y": 0, "w": 32, "h": 32}}
+        ],
+        "meta": {"image": "player.png"}
+    })";
+    CHECK_THROWS_AS(ParseAtlas(json), std::runtime_error);
+}
+
+TEST_CASE("TextureAtlas throws when spriteSourceSize is zero") {
+    const std::string json = R"({
+        "frames": [
+            {
+                "filename": "degenerate",
+                "frame": {"x": 0, "y": 0, "w": 32, "h": 32},
+                "rotated": false,
+                "spriteSourceSize": {"x": 0, "y": 0, "w": 0, "h": 32},
+                "sourceSize": {"w": 32, "h": 32}
+            }
+        ],
+        "meta": {"image": "player.png"}
+    })";
+    CHECK_THROWS_AS(ParseAtlas(json), std::runtime_error);
+}
+
 TEST_CASE("GetRegion throws for missing names") {
     const std::string json = R"({
         "frames": [],
@@ -198,6 +234,26 @@ TEST_CASE("GetRegion throws for missing names") {
 
     TextureAtlas atlas = ParseAtlas(json);
     CHECK_THROWS_AS(atlas.GetRegion("nothing"), std::runtime_error);
+}
+
+TEST_CASE("ContainsNoExt matches on filename without extension") {
+    const std::string json = R"({
+        "frames": [
+            {
+                "filename": "player.png",
+                "frame": {"x": 0, "y": 0, "w": 32, "h": 32},
+                "rotated": false,
+                "spriteSourceSize": {"x": 0, "y": 0, "w": 32, "h": 32},
+                "sourceSize": {"w": 32, "h": 32}
+            }
+        ],
+        "meta": {"image": "sheet.png"}
+    })";
+
+    TextureAtlas atlas = ParseAtlas(json);
+    CHECK(atlas.ContainsNoExt("player"));
+    CHECK(atlas.ContainsNoExt("player.png"));
+    CHECK_FALSE(atlas.ContainsNoExt("missing"));
 }
 
 TEST_CASE("GetRegionNoExt matches on filename without extension") {

@@ -118,6 +118,7 @@
     <ClCompile Include="..\Tests\main.cpp" />
     <ClCompile Include="..\Tests\Graphics\ColorTests.cpp" />
     <ClCompile Include="..\Tests\Graphics\ShapeRendererTests.cpp" />
+    <ClCompile Include="..\Tests\Graphics\SpriteAnimationTests.cpp" />
     <ClCompile Include="..\Tests\Graphics\TextureAtlasTests.cpp" />
     <ClCompile Include="..\Tests\Math\CollisionTests.cpp" />
     <ClCompile Include="..\Tests\Math\MathHelpersTests.cpp" />

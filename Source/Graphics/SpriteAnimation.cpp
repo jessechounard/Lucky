@@ -1,3 +1,6 @@
+#include <algorithm>
+#include <cmath>
+
 #include <SDL3/SDL_assert.h>
 
 #include <Lucky/SpriteAnimation.hpp>
@@ -5,35 +8,36 @@
 namespace Lucky {
 
 SpriteAnimation::SpriteAnimation(
-    TextureAtlas &atlas, const std::string &name, int frameCount, float duration, bool loop)
-    : atlas(&atlas), duration(duration), loop(loop) {
-    SDL_assert(name != "");
-    SDL_assert(frameCount > 0);
-    SDL_assert(duration > 0);
+    TextureAtlas &atlas, const std::vector<std::string> &frameNames, float duration, bool loop)
+    : duration(duration), loop(loop) {
+    SDL_assert(!frameNames.empty());
+    SDL_assert(duration > 0.0f);
 
-    // look through atlas to get all the regions
-    for (int i = 1; i <= frameCount; i++) {
-        const std::string frameName = name + std::to_string(i);
-        frames.push_back(atlas.GetRegionNoExt(frameName));
+    frames.reserve(frameNames.size());
+    for (const auto &name : frameNames) {
+        frames.push_back(atlas.GetRegion(name));
     }
 }
 
 void SpriteAnimationPlayer::AddAnimation(
     const std::string &name, std::shared_ptr<SpriteAnimation> animation) {
-    animations[name] = animation;
+    SDL_assert(animation != nullptr);
+    animations[name] = std::move(animation);
 }
 
 void SpriteAnimationPlayer::Play(const std::string &name, float startOffset) {
+    SDL_assert(startOffset >= 0.0f);
+
     auto iter = animations.find(name);
-    if (iter == animations.end() || iter->second == nullptr) {
-        return;
-    }
+    SDL_assert(iter != animations.end());
+    SDL_assert(iter->second != nullptr);
 
     currentAnimation = iter->second.get();
-    time = startOffset;
 
-    if (currentAnimation->loop) {
-        time = std::fmodf(startOffset, currentAnimation->duration);
+    if (currentAnimation->IsLooping()) {
+        time = std::fmodf(startOffset, currentAnimation->GetDuration());
+    } else {
+        time = std::min(startOffset, currentAnimation->GetDuration());
     }
 
     paused = false;
@@ -43,22 +47,28 @@ void SpriteAnimationPlayer::Pause() {
     paused = true;
 }
 
+void SpriteAnimationPlayer::Resume() {
+    paused = false;
+}
+
 bool SpriteAnimationPlayer::IsComplete() const {
-    return currentAnimation != nullptr && currentAnimation->loop == false &&
-           time >= currentAnimation->duration;
+    return currentAnimation != nullptr && !currentAnimation->IsLooping() &&
+           time >= currentAnimation->GetDuration();
 }
 
 void SpriteAnimationPlayer::Update(float frameTime) {
+    SDL_assert(frameTime >= 0.0f);
+
     if (currentAnimation == nullptr || paused) {
         return;
     }
 
     time += frameTime;
 
-    if (currentAnimation->loop) {
-        time = std::fmodf(time, currentAnimation->duration);
+    if (currentAnimation->IsLooping()) {
+        time = std::fmodf(time, currentAnimation->GetDuration());
     } else {
-        time = std::min(time, currentAnimation->duration);
+        time = std::min(time, currentAnimation->GetDuration());
     }
 }
 
@@ -70,14 +80,16 @@ void SpriteAnimationPlayer::Render(BatchRenderer &batchRenderer, const glm::vec2
         return;
     }
 
-    float frameDuration = currentAnimation->duration / currentAnimation->frames.size();
-    size_t frameNumber =
-        std::min(size_t(time / frameDuration), currentAnimation->frames.size() - 1);
+    const auto &frames = currentAnimation->Frames();
+    SDL_assert(!frames.empty());
 
-    auto frame = currentAnimation->frames[frameNumber];
-    UVMode uvMode = frame.rotated ? UVMode::RotatedCW90 : UVMode::Normal;
+    const float frameDuration = currentAnimation->GetDuration() / frames.size();
+    const size_t frameNumber = std::min(size_t(time / frameDuration), frames.size() - 1);
 
-    batchRenderer.BatchQuad(&frame.bounds, position, rotation, scale, frame.pivot, uvMode, color);
+    const auto &frame = frames[frameNumber];
+    const UVMode uvMode = frame.rotated ? UVMode::RotatedCW90 : UVMode::Normal;
+
+    batchRenderer.BatchSprite(&frame.bounds, position, rotation, scale, frame.pivot, uvMode, color);
 }
 
 } // namespace Lucky

@@ -17,6 +17,14 @@ From "Sci-Fi Sounds" by Kenney (www.kenney.nl)
 Licensed under Creative Commons Zero (CC0)
 https://creativecommons.org/publicdomain/zero/1.0/
 
+## Graphics
+
+### character_zombie_walk*.png / character_robot_walk*.png
+
+From "Toon Characters Pack 1" by Kenney (www.kenney.nl)
+Licensed under Creative Commons Zero (CC0)
+https://creativecommons.org/publicdomain/zero/1.0/
+
 ## Fonts
 
 ### MouseMemoirs-Regular.ttf

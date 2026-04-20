@@ -1,4 +1,5 @@
 #include <SDL3/SDL_assert.h>
+#include <limits>
 #include <stdexcept>
 #include <stdint.h>
 #include <stdio.h>
@@ -11,25 +12,54 @@
 
 namespace Lucky {
 
+namespace {
+
+struct StbiPixelData {
+    uint8_t *data = nullptr;
+    ~StbiPixelData() {
+        if (data) {
+            stbi_image_free(data);
+        }
+    }
+};
+
+uint32_t ExpectedByteSize(uint32_t width, uint32_t height, TextureFormat format) {
+    const size_t bytes = static_cast<size_t>(width) * static_cast<size_t>(height) *
+                         static_cast<size_t>(BytesPerPixel(format));
+    if (bytes > std::numeric_limits<uint32_t>::max()) {
+        throw std::runtime_error("Texture dimensions exceed 4 GiB upload limit");
+    }
+    return static_cast<uint32_t>(bytes);
+}
+
+} // namespace
+
 Texture::Texture(GraphicsDevice &graphicsDevice, const std::string &filename,
     TextureFilter textureFilter, TextureFormat textureFormat)
     : graphicsDevice(graphicsDevice) {
+    if (textureFormat == TextureFormat::HDR) {
+        spdlog::error("HDR file loading is not yet supported: {}", filename);
+        throw std::runtime_error("HDR file loading is not yet supported");
+    }
+
     int imageWidth, imageHeight, imageChannels;
-    uint8_t *imagePixels =
-        stbi_load(filename.c_str(), &imageWidth, &imageHeight, &imageChannels, 4);
-    if (imagePixels == nullptr) {
+    StbiPixelData pixels;
+    pixels.data = stbi_load(filename.c_str(), &imageWidth, &imageHeight, &imageChannels, 4);
+    if (!pixels.data) {
         spdlog::error("Failed to load image file: {}", filename);
         throw std::runtime_error("Failed to load image file: " + filename);
     }
 
+    const uint32_t dataLength = ExpectedByteSize(
+        static_cast<uint32_t>(imageWidth), static_cast<uint32_t>(imageHeight), textureFormat);
+
     Initialize(TextureType::Default,
-        imageWidth,
-        imageHeight,
-        imagePixels,
-        imageWidth * imageHeight * 4,
+        static_cast<uint32_t>(imageWidth),
+        static_cast<uint32_t>(imageHeight),
+        pixels.data,
+        dataLength,
         textureFilter,
         textureFormat);
-    stbi_image_free(imagePixels);
 }
 
 Texture::Texture(GraphicsDevice &graphicsDevice, uint8_t *memory, uint32_t memoryLength,
@@ -37,22 +67,30 @@ Texture::Texture(GraphicsDevice &graphicsDevice, uint8_t *memory, uint32_t memor
     : graphicsDevice(graphicsDevice) {
     SDL_assert(memory != nullptr);
 
-    int imageWidth, imageHeight, imageChannels;
-    uint8_t *imagePixels =
-        stbi_load_from_memory(memory, memoryLength, &imageWidth, &imageHeight, &imageChannels, 4);
-    if (imagePixels == nullptr) {
-        spdlog::error("Failed to load image file from memory");
-        throw std::runtime_error("Failed to load image file from memory");
+    if (textureFormat == TextureFormat::HDR) {
+        spdlog::error("HDR in-memory image loading is not yet supported");
+        throw std::runtime_error("HDR in-memory image loading is not yet supported");
     }
 
+    int imageWidth, imageHeight, imageChannels;
+    StbiPixelData pixels;
+    pixels.data =
+        stbi_load_from_memory(memory, memoryLength, &imageWidth, &imageHeight, &imageChannels, 4);
+    if (!pixels.data) {
+        spdlog::error("Failed to load image from memory");
+        throw std::runtime_error("Failed to load image from memory");
+    }
+
+    const uint32_t dataLength = ExpectedByteSize(
+        static_cast<uint32_t>(imageWidth), static_cast<uint32_t>(imageHeight), textureFormat);
+
     Initialize(TextureType::Default,
-        imageWidth,
-        imageHeight,
-        imagePixels,
-        imageWidth * imageHeight * 4,
+        static_cast<uint32_t>(imageWidth),
+        static_cast<uint32_t>(imageHeight),
+        pixels.data,
+        dataLength,
         textureFilter,
         textureFormat);
-    stbi_image_free(imagePixels);
 }
 
 Texture::Texture(GraphicsDevice &graphicsDevice, TextureType textureType, uint32_t width,
@@ -62,7 +100,8 @@ Texture::Texture(GraphicsDevice &graphicsDevice, TextureType textureType, uint32
     SDL_assert(width > 0);
     SDL_assert(height > 0);
     if (pixelData != nullptr) {
-        SDL_assert(dataLength >= width * height * 4);
+        const uint32_t expected = ExpectedByteSize(width, height, textureFormat);
+        SDL_assert(dataLength >= expected);
     }
 
     Initialize(textureType, width, height, pixelData, dataLength, textureFilter, textureFormat);
@@ -74,6 +113,7 @@ void Texture::Initialize(TextureType textureType, uint32_t width, uint32_t heigh
     this->width = width;
     this->height = height;
     this->textureType = textureType;
+    this->textureFormat = textureFormat;
 
     SDL_GPUTextureCreateInfo texCI;
     SDL_zero(texCI);
@@ -100,7 +140,7 @@ void Texture::Initialize(TextureType textureType, uint32_t width, uint32_t heigh
     CreateSampler(textureFilter);
 
     if (pixelData != nullptr) {
-        UploadPixelData(pixelData, dataLength);
+        UploadRegion(0, 0, width, height, pixelData, dataLength);
     }
 }
 
@@ -147,70 +187,44 @@ void Texture::CreateSampler(TextureFilter filter) {
     }
 }
 
-void Texture::UploadPixelData(uint8_t *pixelData, uint32_t dataLength) {
+void Texture::UploadRegion(
+    uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint8_t *pixelData, uint32_t dataLength) {
+    SDL_GPUDevice *device = graphicsDevice.GetDevice();
+
     SDL_GPUTransferBufferCreateInfo tbCI;
     SDL_zero(tbCI);
     tbCI.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
     tbCI.size = dataLength;
 
-    SDL_GPUTransferBuffer *transferBuffer =
-        SDL_CreateGPUTransferBuffer(graphicsDevice.GetDevice(), &tbCI);
+    SDL_GPUTransferBuffer *transferBuffer = SDL_CreateGPUTransferBuffer(device, &tbCI);
     if (!transferBuffer) {
-        spdlog::error("Failed to create transfer buffer for texture upload: {}", SDL_GetError());
+        spdlog::error("Failed to create transfer buffer: {}", SDL_GetError());
         throw std::runtime_error("Failed to create transfer buffer for texture upload");
     }
 
-    void *mapped = SDL_MapGPUTransferBuffer(graphicsDevice.GetDevice(), transferBuffer, false);
+    void *mapped = SDL_MapGPUTransferBuffer(device, transferBuffer, false);
+    if (!mapped) {
+        SDL_ReleaseGPUTransferBuffer(device, transferBuffer);
+        spdlog::error("Failed to map transfer buffer: {}", SDL_GetError());
+        throw std::runtime_error("Failed to map transfer buffer for texture upload");
+    }
     memcpy(mapped, pixelData, dataLength);
-    SDL_UnmapGPUTransferBuffer(graphicsDevice.GetDevice(), transferBuffer);
+    SDL_UnmapGPUTransferBuffer(device, transferBuffer);
 
-    SDL_GPUCommandBuffer *cmd = SDL_AcquireGPUCommandBuffer(graphicsDevice.GetDevice());
-    SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(cmd);
-
-    SDL_GPUTextureTransferInfo src;
-    SDL_zero(src);
-    src.transfer_buffer = transferBuffer;
-
-    SDL_GPUTextureRegion dst;
-    SDL_zero(dst);
-    dst.texture = gpuTexture;
-    dst.w = width;
-    dst.h = height;
-    dst.d = 1;
-
-    SDL_UploadToGPUTexture(copyPass, &src, &dst, false);
-    SDL_EndGPUCopyPass(copyPass);
-    SDL_SubmitGPUCommandBuffer(cmd);
-
-    SDL_ReleaseGPUTransferBuffer(graphicsDevice.GetDevice(), transferBuffer);
-}
-
-void Texture::SetTextureData(
-    uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint8_t *pixelData, uint32_t dataLength) {
-    SDL_assert(pixelData != nullptr);
-    SDL_assert(x + w <= width);
-    SDL_assert(y + h <= height);
-    SDL_assert(dataLength == w * h * 4);
-
-    SDL_GPUTransferBufferCreateInfo tbCI;
-    SDL_zero(tbCI);
-    tbCI.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-    tbCI.size = dataLength;
-
-    SDL_GPUTransferBuffer *transferBuffer =
-        SDL_CreateGPUTransferBuffer(graphicsDevice.GetDevice(), &tbCI);
-    if (!transferBuffer) {
-        spdlog::error(
-            "Failed to create transfer buffer for texture data upload: {}", SDL_GetError());
-        return;
+    SDL_GPUCommandBuffer *cmd = SDL_AcquireGPUCommandBuffer(device);
+    if (!cmd) {
+        SDL_ReleaseGPUTransferBuffer(device, transferBuffer);
+        spdlog::error("Failed to acquire command buffer: {}", SDL_GetError());
+        throw std::runtime_error("Failed to acquire command buffer for texture upload");
     }
 
-    void *mapped = SDL_MapGPUTransferBuffer(graphicsDevice.GetDevice(), transferBuffer, false);
-    memcpy(mapped, pixelData, dataLength);
-    SDL_UnmapGPUTransferBuffer(graphicsDevice.GetDevice(), transferBuffer);
-
-    SDL_GPUCommandBuffer *cmd = SDL_AcquireGPUCommandBuffer(graphicsDevice.GetDevice());
     SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(cmd);
+    if (!copyPass) {
+        SDL_SubmitGPUCommandBuffer(cmd);
+        SDL_ReleaseGPUTransferBuffer(device, transferBuffer);
+        spdlog::error("Failed to begin copy pass: {}", SDL_GetError());
+        throw std::runtime_error("Failed to begin copy pass for texture upload");
+    }
 
     SDL_GPUTextureTransferInfo src;
     SDL_zero(src);
@@ -229,7 +243,18 @@ void Texture::SetTextureData(
     SDL_EndGPUCopyPass(copyPass);
     SDL_SubmitGPUCommandBuffer(cmd);
 
-    SDL_ReleaseGPUTransferBuffer(graphicsDevice.GetDevice(), transferBuffer);
+    SDL_ReleaseGPUTransferBuffer(device, transferBuffer);
+}
+
+void Texture::SetTextureData(
+    uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint8_t *pixelData, uint32_t dataLength) {
+    SDL_assert(pixelData != nullptr);
+    SDL_assert(x + w <= width);
+    SDL_assert(y + h <= height);
+    const uint32_t expected = ExpectedByteSize(w, h, textureFormat);
+    SDL_assert(dataLength == expected);
+
+    UploadRegion(x, y, w, h, pixelData, dataLength);
 }
 
 void Texture::SetTextureFilter(TextureFilter filter) {

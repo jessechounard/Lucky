@@ -158,6 +158,7 @@ xcopy /E /Y /D /I "$(ProjectDir)..\Demos\Content" "$(OutDir)Content\"</Command>
     <ClCompile Include="..\Demos\Source\Demos\HelloTriangleDemo.cpp" />
     <ClCompile Include="..\Demos\Source\Demos\ShapeRendererDemo.cpp" />
     <ClCompile Include="..\Demos\Source\Demos\SlugTextDemo.cpp" />
+    <ClCompile Include="..\Demos\Source\Demos\SpriteAnimationDemo.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Demos\Source\DemoBase.hpp" />

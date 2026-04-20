@@ -210,7 +210,7 @@ void BatchRenderer::BatchQuadUV(const glm::vec2 &uv0, const glm::vec2 &uv1, cons
     activeVertices += 6;
 }
 
-void BatchRenderer::BatchQuad(const Rectangle *sourceRectangle, const glm::vec2 &position,
+void BatchRenderer::BatchSprite(const Rectangle *sourceRectangle, const glm::vec2 &position,
     const float rotation, const glm::vec2 &scale, const glm::vec2 &origin, const UVMode uvMode,
     const Color &color) {
     SDL_assert(batchStarted);
@@ -261,6 +261,11 @@ void BatchRenderer::BatchQuad(const Rectangle *sourceRectangle, const glm::vec2 
         std::swap(uvs[0], uvs[3]);
         std::swap(uvs[1], uvs[2]);
     }
+
+    // Y-up pixel coords vs Y-down texture rows — see Orientation in
+    // BatchQuad's header Doxygen.
+    std::swap(uvs[0], uvs[3]);
+    std::swap(uvs[1], uvs[2]);
 
     Vertex *vertices = &this->vertices[0] + activeVertices;
 

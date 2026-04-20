@@ -20,6 +20,9 @@
     <ClCompile Include="..\Tests\Graphics\ShapeRendererTests.cpp">
       <Filter>Graphics</Filter>
     </ClCompile>
+    <ClCompile Include="..\Tests\Graphics\SpriteAnimationTests.cpp">
+      <Filter>Graphics</Filter>
+    </ClCompile>
     <ClCompile Include="..\Tests\Graphics\ColorTests.cpp">
       <Filter>Graphics</Filter>
     </ClCompile>
