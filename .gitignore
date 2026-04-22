@@ -13,3 +13,6 @@ x64/
 /docgen_tmp/
 .DS_Store
 .vscode
+
+# Local-only experiments (reference, not shipped)
+Experiments/
