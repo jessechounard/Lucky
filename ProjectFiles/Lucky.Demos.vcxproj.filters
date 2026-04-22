@@ -19,6 +19,9 @@
     <ClCompile Include="..\Demos\Source\main.cpp">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\Demos\Source\Demos\AudioDemo.cpp">
+      <Filter>Source\Demos</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Demos\Source\DemoBase.hpp">
