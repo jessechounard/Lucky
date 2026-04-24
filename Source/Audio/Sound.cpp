@@ -27,7 +27,7 @@ Sound::Sound(const std::string &filename) {
     drwav_free(drwavSamples, nullptr);
 }
 
-Sound::Sound(void *buffer, uint32_t bufferByteSize) {
+Sound::Sound(const void *buffer, uint32_t bufferByteSize) {
     unsigned int drwavChannels;
     unsigned int drwavSampleRate;
     drwav_uint64 drwavSampleCount;
@@ -47,19 +47,28 @@ Sound::Sound(void *buffer, uint32_t bufferByteSize) {
     drwav_free(drwavSamples, nullptr);
 }
 
-uint32_t Sound::GetFrames(uint32_t &position, int16_t *buffer, uint32_t frameCount, bool *loop) {
+uint32_t Sound::GetFrames(
+    uint32_t &position, int16_t *buffer, uint32_t frameCount, bool canLoop, bool *didLoop) {
+    if (didLoop) {
+        *didLoop = false;
+    }
+
     uint32_t framesAvailable = totalFrames - position;
     uint32_t framesToGet = std::min(frameCount, framesAvailable);
 
     if (framesToGet > 0) {
         memcpy(buffer, &frames[position * channels], framesToGet * channels * sizeof(int16_t));
         position += framesToGet;
-        if (position == totalFrames && loop) {
-            *loop = true;
+        if (position == totalFrames && canLoop) {
+            if (didLoop) {
+                *didLoop = true;
+            }
             position = 0;
-            return framesToGet +
-                   GetFrames(
-                       position, buffer + framesToGet * channels, frameCount - framesToGet, loop);
+            return framesToGet + GetFrames(position,
+                                     buffer + framesToGet * channels,
+                                     frameCount - framesToGet,
+                                     canLoop,
+                                     nullptr);
         }
     }
 

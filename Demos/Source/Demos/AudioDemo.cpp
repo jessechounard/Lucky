@@ -129,7 +129,7 @@ class AudioDemo : public LuckyDemos::DemoBase {
             audioPlayer.Stop(musicRef);
             musicRef = 0;
         } else {
-            music = std::make_shared<Lucky::Stream>(*music);
+            music = std::make_shared<Lucky::Stream>(music->Clone());
             musicRef = audioPlayer.Play(music, "default", true);
         }
     }

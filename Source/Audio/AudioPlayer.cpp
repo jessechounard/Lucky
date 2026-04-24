@@ -20,7 +20,7 @@ struct AudioInstance {
     AudioInstance(AudioPlayer &player, bool shouldLoop, AudioState state, AudioRef ref,
         const std::string &group, int16_t channels, int32_t sampleRate)
         : player(player), audioStream(nullptr), shouldLoop(shouldLoop), bound(false), state(state),
-          ref(ref), group(group) {
+          ref(ref), group(group), channels(channels), sampleRate(sampleRate) {
         SDL_AudioSpec sourceSpec{SDL_AUDIO_S16, channels, sampleRate};
 
         audioStream = SDL_CreateAudioStream(&sourceSpec, &sourceSpec);
@@ -49,8 +49,49 @@ struct AudioInstance {
         }
     }
 
-    virtual uint32_t GetSampleRate() const = 0;
-    virtual PutFramesResult PutSamplesStream(uint32_t desiredFrameCount) = 0;
+    virtual uint32_t getFramesFromSource(int16_t *buffer, uint32_t framesNeeded, bool *didLoop) = 0;
+
+    PutFramesResult PutSamplesStream(uint32_t desiredFrameCount) {
+        if (!audioStream) {
+            spdlog::error("Attempted to put samples into a null audio stream");
+            return PutFramesResult::Error;
+        }
+
+        int bytesQueued = SDL_GetAudioStreamQueued(audioStream);
+        uint32_t framesQueued = bytesQueued / sizeof(int16_t) / channels;
+
+        if (framesQueued >= desiredFrameCount) {
+            return PutFramesResult::Success;
+        }
+
+        uint32_t framesNeeded = desiredFrameCount - framesQueued;
+
+        size_t samplesNeeded = framesNeeded * channels;
+        if (workBuffer.size() < samplesNeeded) {
+            workBuffer.resize(samplesNeeded);
+        }
+        bool didLoop = false;
+        auto frameCount = getFramesFromSource(workBuffer.data(), framesNeeded, &didLoop);
+
+        if (frameCount == 0) {
+            SDL_FlushAudioStream(audioStream);
+            if (framesQueued == 0) {
+                return PutFramesResult::Complete;
+            }
+            return PutFramesResult::ExhaustingQueue;
+        }
+
+        if (!SDL_PutAudioStreamData(
+                audioStream, workBuffer.data(), frameCount * channels * sizeof(int16_t))) {
+            spdlog::error("Failed to put audio stream data: {}", SDL_GetError());
+            return PutFramesResult::Error;
+        }
+
+        if (frameCount < framesNeeded) {
+            return PutFramesResult::ExhaustingQueue;
+        }
+        return PutFramesResult::Success;
+    }
 
     AudioPlayer &player;
     SDL_AudioStream *audioStream;
@@ -59,6 +100,8 @@ struct AudioInstance {
     AudioState state;
     AudioRef ref;
     std::string group;
+    int16_t channels;
+    int32_t sampleRate;
     std::vector<int16_t> workBuffer;
 };
 
@@ -69,54 +112,8 @@ struct SoundInstance : public AudioInstance {
           sound(sound), position(0) {
     }
 
-    ~SoundInstance() {
-    }
-
-    virtual uint32_t GetSampleRate() const {
-        return sound->sampleRate;
-    }
-
-    virtual PutFramesResult PutSamplesStream(uint32_t desiredFrameCount) {
-        if (!audioStream) {
-            spdlog::error("Attempted to put samples into a null audio stream");
-            return PutFramesResult::Error;
-        }
-
-        int bytesQueued = SDL_GetAudioStreamQueued(audioStream);
-        uint32_t framesQueued = bytesQueued / sizeof(int16_t) / sound->channels;
-        uint32_t framesNeeded = desiredFrameCount - framesQueued;
-
-        if (framesQueued >= desiredFrameCount) {
-            return PutFramesResult::Success;
-        }
-
-        size_t samplesNeeded = framesNeeded * sound->channels;
-        if (workBuffer.size() < samplesNeeded) {
-            workBuffer.resize(samplesNeeded);
-        }
-        bool didLoop = false;
-        auto frameCount = sound->GetFrames(
-            position, workBuffer.data(), framesNeeded, shouldLoop ? &didLoop : nullptr);
-
-        if (frameCount == 0) {
-            SDL_FlushAudioStream(audioStream);
-            if (framesQueued == 0) {
-                return PutFramesResult::Complete;
-            }
-
-            return PutFramesResult::ExhaustingQueue;
-        }
-
-        if (!SDL_PutAudioStreamData(
-                audioStream, workBuffer.data(), frameCount * sound->channels * sizeof(int16_t))) {
-            spdlog::error("Failed to put audio stream data: {}", SDL_GetError());
-            return PutFramesResult::Error;
-        }
-
-        if (frameCount < framesNeeded) {
-            return PutFramesResult::ExhaustingQueue;
-        }
-        return PutFramesResult::Success;
+    uint32_t getFramesFromSource(int16_t *buffer, uint32_t framesNeeded, bool *didLoop) override {
+        return sound->GetFrames(position, buffer, framesNeeded, shouldLoop, didLoop);
     }
 
     std::shared_ptr<Sound> sound;
@@ -128,57 +125,11 @@ struct StreamInstance : public AudioInstance {
         AudioState state, AudioRef ref, const std::string &group)
         : AudioInstance(
               player, shouldLoop, state, ref, group, stream->channels, stream->sampleRate),
-          stream(std::make_unique<Stream>(*stream)) {
+          stream(std::make_unique<Stream>(stream->Clone())) {
     }
 
-    ~StreamInstance() {
-    }
-
-    virtual uint32_t GetSampleRate() const {
-        return stream->sampleRate;
-    }
-
-    virtual PutFramesResult PutSamplesStream(uint32_t desiredFrameCount) {
-        if (!audioStream) {
-            spdlog::error("Attempted to put samples into a null audio stream");
-            return PutFramesResult::Error;
-        }
-
-        int bytesQueued = SDL_GetAudioStreamQueued(audioStream);
-        uint32_t framesQueued = bytesQueued / sizeof(int16_t) / stream->channels;
-        uint32_t framesNeeded = desiredFrameCount - framesQueued;
-
-        if (framesQueued >= desiredFrameCount) {
-            return PutFramesResult::Success;
-        }
-
-        size_t samplesNeeded = framesNeeded * stream->channels;
-        if (workBuffer.size() < samplesNeeded) {
-            workBuffer.resize(samplesNeeded);
-        }
-        bool didLoop = false;
-        auto frameCount =
-            stream->GetFrames(workBuffer.data(), framesNeeded, shouldLoop ? &didLoop : nullptr);
-
-        if (frameCount == 0) {
-            SDL_FlushAudioStream(audioStream);
-            if (framesQueued == 0) {
-                return PutFramesResult::Complete;
-            }
-
-            return PutFramesResult::ExhaustingQueue;
-        }
-
-        if (!SDL_PutAudioStreamData(
-                audioStream, workBuffer.data(), frameCount * stream->channels * sizeof(int16_t))) {
-            spdlog::error("Failed to put audio stream data: {}", SDL_GetError());
-            return PutFramesResult::Error;
-        }
-
-        if (frameCount < framesNeeded) {
-            return PutFramesResult::ExhaustingQueue;
-        }
-        return PutFramesResult::Success;
+    uint32_t getFramesFromSource(int16_t *buffer, uint32_t framesNeeded, bool *didLoop) override {
+        return stream->GetFrames(buffer, framesNeeded, shouldLoop, didLoop);
     }
 
     std::unique_ptr<Stream> stream;
@@ -192,7 +143,6 @@ struct SoundGroup {
 
 struct AudioPlayer::Impl {
     AudioRef nextAudioRef;
-    SoundGroupSettings defaultSoundGroupSettings;
 
     std::vector<std::unique_ptr<AudioInstance>> instances;
     std::map<std::string, SoundGroup> soundGroups;
@@ -218,7 +168,6 @@ std::vector<AudioDevice> AudioPlayer::GetAudioOutputDevices() {
 AudioPlayer::AudioPlayer(SoundGroupSettings defaultSoundGroupSettings)
     : pImpl(std::make_unique<Impl>()) {
     pImpl->nextAudioRef = 1;
-    pImpl->defaultSoundGroupSettings = defaultSoundGroupSettings;
     pImpl->masterVolume = 1.0f;
     pImpl->queueTime = 1 / 30.0f;
 
@@ -286,16 +235,23 @@ void AudioPlayer::CreateSoundGroup(const std::string &soundGroupName, SoundGroup
 }
 
 void AudioPlayer::DestroySoundGroup(const std::string &soundGroupName) {
-    StopGroup(soundGroupName);
-
     auto groupIterator = pImpl->soundGroups.find(soundGroupName);
-    if (groupIterator != pImpl->soundGroups.end()) {
-        SDL_CloseAudioDevice(groupIterator->second.logicalAudioDeviceId);
-        pImpl->soundGroups.erase(groupIterator);
+    SDL_assert(groupIterator != pImpl->soundGroups.end());
+    if (groupIterator == pImpl->soundGroups.end()) {
+        return;
     }
+
+    StopGroup(soundGroupName);
+    SDL_CloseAudioDevice(groupIterator->second.logicalAudioDeviceId);
+    pImpl->soundGroups.erase(groupIterator);
 }
 
 void AudioPlayer::StopGroup(const std::string &soundGroupName) {
+    SDL_assert(pImpl->soundGroups.find(soundGroupName) != pImpl->soundGroups.end());
+    if (pImpl->soundGroups.find(soundGroupName) == pImpl->soundGroups.end()) {
+        return;
+    }
+
     pImpl->instances.erase(std::remove_if(pImpl->instances.begin(),
                                pImpl->instances.end(),
                                [soundGroupName](std::unique_ptr<AudioInstance> &ai) {
@@ -305,38 +261,54 @@ void AudioPlayer::StopGroup(const std::string &soundGroupName) {
 }
 
 void AudioPlayer::PauseGroup(const std::string &soundGroupName) {
+    SDL_assert(pImpl->soundGroups.find(soundGroupName) != pImpl->soundGroups.end());
+    if (pImpl->soundGroups.find(soundGroupName) == pImpl->soundGroups.end()) {
+        return;
+    }
+
     for (auto const &i : pImpl->instances) {
-        if (i->group == soundGroupName) {
-            Pause(i->ref);
+        if (i->group == soundGroupName && i->state != AudioState::Paused) {
+            i->state = AudioState::Paused;
+            i->bound = false;
+            SDL_UnbindAudioStream(i->audioStream);
         }
     }
 }
 
 void AudioPlayer::ResumeGroup(const std::string &soundGroupName) {
+    auto groupIterator = pImpl->soundGroups.find(soundGroupName);
+    SDL_assert(groupIterator != pImpl->soundGroups.end());
+    if (groupIterator == pImpl->soundGroups.end()) {
+        return;
+    }
+
+    SDL_AudioDeviceID deviceId = groupIterator->second.logicalAudioDeviceId;
     for (auto const &i : pImpl->instances) {
-        if (i->group == soundGroupName) {
-            Resume(i->ref);
+        if (i->group == soundGroupName && i->state != AudioState::Playing) {
+            i->state = AudioState::Playing;
+            i->bound = true;
+            if (!SDL_BindAudioStream(deviceId, i->audioStream)) {
+                spdlog::error("Failed to bind audio stream: {}", SDL_GetError());
+            }
         }
     }
 }
 
-SDL_AudioDeviceID AudioPlayer::GetGroupDeviceId(const std::string &soundGroupName) {
+SDL_AudioDeviceID AudioPlayer::GetGroupDeviceId(const std::string &soundGroupName) const {
     auto iterator = pImpl->soundGroups.find(soundGroupName);
+    SDL_assert(iterator != pImpl->soundGroups.end());
     if (iterator == pImpl->soundGroups.end()) {
-        spdlog::error("Couldn't find audio group named {}", soundGroupName);
-        throw std::runtime_error("Couldn't find audio group named " + soundGroupName);
+        return 0;
     }
-
     return iterator->second.logicalAudioDeviceId;
 }
 
-float AudioPlayer::GetGroupVolume(const std::string &soundGroupName) {
+float AudioPlayer::GetGroupVolume(const std::string &soundGroupName) const {
     auto iterator = pImpl->soundGroups.find(soundGroupName);
+    SDL_assert(iterator != pImpl->soundGroups.end());
     if (iterator == pImpl->soundGroups.end()) {
-        spdlog::error("Couldn't find audio group named {}", soundGroupName);
-        throw std::runtime_error("Couldn't find audio group named " + soundGroupName);
+        return 0.0f;
     }
-
     return iterator->second.volume;
 }
 
@@ -354,9 +326,9 @@ void AudioPlayer::SetMasterVolume(float volume) {
 
 AudioRef AudioPlayer::Play(
     std::shared_ptr<Sound> sound, const std::string &soundGroupName, const bool loop) {
-    auto groupIterator = pImpl->soundGroups.find(soundGroupName);
-    if (groupIterator == pImpl->soundGroups.end()) {
-        CreateSoundGroup(soundGroupName, pImpl->defaultSoundGroupSettings);
+    SDL_assert(pImpl->soundGroups.find(soundGroupName) != pImpl->soundGroups.end());
+    if (pImpl->soundGroups.find(soundGroupName) == pImpl->soundGroups.end()) {
+        return 0;
     }
 
     AudioRef audioRef = pImpl->nextAudioRef++;
@@ -368,9 +340,9 @@ AudioRef AudioPlayer::Play(
 
 AudioRef AudioPlayer::Play(
     std::shared_ptr<Stream> stream, const std::string &soundGroupName, const bool loop) {
-    auto groupIterator = pImpl->soundGroups.find(soundGroupName);
-    if (groupIterator == pImpl->soundGroups.end()) {
-        CreateSoundGroup(soundGroupName, pImpl->defaultSoundGroupSettings);
+    SDL_assert(pImpl->soundGroups.find(soundGroupName) != pImpl->soundGroups.end());
+    if (pImpl->soundGroups.find(soundGroupName) == pImpl->soundGroups.end()) {
+        return 0;
     }
 
     AudioRef audioRef = pImpl->nextAudioRef++;
@@ -434,8 +406,8 @@ AudioState AudioPlayer::GetState(const AudioRef &audioRef) {
 void AudioPlayer::Update() {
     for (auto &i : pImpl->instances) {
         if (i->state == AudioState::Playing) {
-            uint32_t sampleRate = i->GetSampleRate();
-            auto result = i->PutSamplesStream(static_cast<uint32_t>(pImpl->queueTime * sampleRate));
+            auto result =
+                i->PutSamplesStream(static_cast<uint32_t>(pImpl->queueTime * i->sampleRate));
             if (result == AudioInstance::PutFramesResult::Complete) {
                 i->state = AudioState::Stopped;
             } else if (!i->bound) {

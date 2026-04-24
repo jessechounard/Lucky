@@ -9,144 +9,111 @@
 
 namespace Lucky {
 
+namespace {
+
+struct StbVorbisDeleter {
+    void operator()(stb_vorbis *p) const noexcept {
+        if (p) {
+            stb_vorbis_close(p);
+        }
+    }
+};
+
+struct DrMp3Deleter {
+    void operator()(drmp3 *p) const noexcept {
+        if (p) {
+            drmp3_uninit(p);
+            delete p;
+        }
+    }
+};
+
+} // namespace
+
 struct Stream::Impl {
     StreamSource streamSource;
     std::string fileName;
-    void *buffer;
+    const void *buffer;
     uint32_t bufferByteSize;
-    stb_vorbis *vorbis;
-    drmp3 *mp3;
+    std::unique_ptr<stb_vorbis, StbVorbisDeleter> vorbis;
+    std::unique_ptr<drmp3, DrMp3Deleter> mp3;
 
     Impl(const std::string &fileName)
-        : streamSource(StreamSource::File), fileName(fileName), buffer(nullptr), bufferByteSize(0),
-          vorbis(nullptr), mp3(nullptr) {
+        : streamSource(StreamSource::File), fileName(fileName), buffer(nullptr), bufferByteSize(0) {
     }
 
-    Impl(void *buffer, uint32_t bufferByteSize)
-        : streamSource(StreamSource::Memory), buffer(buffer), bufferByteSize(bufferByteSize),
-          vorbis(nullptr), mp3(nullptr) {
-    }
-
-    Impl(const Stream &stream)
-        : streamSource(stream.pImpl->streamSource), fileName(stream.pImpl->fileName),
-          buffer(stream.pImpl->buffer), bufferByteSize(stream.pImpl->bufferByteSize),
-          vorbis(nullptr), mp3(nullptr) {
+    Impl(const void *buffer, uint32_t bufferByteSize)
+        : streamSource(StreamSource::Memory), buffer(buffer), bufferByteSize(bufferByteSize) {
     }
 };
 
 Stream::Stream(const std::string &fileName)
     : sampleRate(0), channels(0), pImpl(std::make_unique<Impl>(fileName)) {
-    pImpl->vorbis = stb_vorbis_open_filename(fileName.c_str(), nullptr, nullptr);
+    pImpl->vorbis.reset(stb_vorbis_open_filename(fileName.c_str(), nullptr, nullptr));
     if (pImpl->vorbis) {
-        stb_vorbis_info info = stb_vorbis_get_info(pImpl->vorbis);
+        stb_vorbis_info info = stb_vorbis_get_info(pImpl->vorbis.get());
         sampleRate = info.sample_rate;
         channels = info.channels;
     } else {
-        pImpl->mp3 = new drmp3();
-        if (drmp3_init_file(pImpl->mp3, fileName.c_str(), nullptr)) {
+        auto candidate = std::make_unique<drmp3>();
+        if (drmp3_init_file(candidate.get(), fileName.c_str(), nullptr)) {
+            pImpl->mp3.reset(candidate.release());
             sampleRate = pImpl->mp3->sampleRate;
             channels = pImpl->mp3->channels;
         } else {
-            delete pImpl->mp3;
             spdlog::error("Couldn't open audio stream from file {}", fileName);
             throw std::runtime_error("Couldn't open audio stream from file " + fileName);
         }
     }
 }
 
-Stream::Stream(void *buffer, uint32_t bufferByteSize)
-    : sampleRate(0), channels(0), pImpl(std::make_unique<Impl>(buffer, bufferByteSize))
-
-{
-    pImpl->vorbis =
-        stb_vorbis_open_memory((const unsigned char *)buffer, bufferByteSize, nullptr, nullptr);
+Stream::Stream(const void *buffer, uint32_t bufferByteSize)
+    : sampleRate(0), channels(0), pImpl(std::make_unique<Impl>(buffer, bufferByteSize)) {
+    pImpl->vorbis.reset(
+        stb_vorbis_open_memory((const unsigned char *)buffer, bufferByteSize, nullptr, nullptr));
     if (pImpl->vorbis) {
-        stb_vorbis_info info = stb_vorbis_get_info(pImpl->vorbis);
+        stb_vorbis_info info = stb_vorbis_get_info(pImpl->vorbis.get());
         sampleRate = info.sample_rate;
         channels = info.channels;
     } else {
-        pImpl->mp3 = new drmp3();
-        if (drmp3_init_memory(pImpl->mp3, buffer, bufferByteSize, nullptr)) {
+        auto candidate = std::make_unique<drmp3>();
+        if (drmp3_init_memory(candidate.get(), buffer, bufferByteSize, nullptr)) {
+            pImpl->mp3.reset(candidate.release());
             sampleRate = pImpl->mp3->sampleRate;
             channels = pImpl->mp3->channels;
         } else {
-            delete pImpl->mp3;
             spdlog::error("Couldn't open audio stream from memory");
             throw std::runtime_error("Couldn't open audio stream from memory");
         }
     }
 }
 
-Stream::Stream(const Stream &stream)
-    : sampleRate(stream.sampleRate), channels(stream.channels),
-      pImpl(std::make_unique<Impl>(stream)) {
-    if (stream.pImpl->vorbis) {
-        if (pImpl->streamSource == StreamSource::File) {
-            pImpl->vorbis = stb_vorbis_open_filename(pImpl->fileName.c_str(), nullptr, nullptr);
-            if (!pImpl->vorbis) {
-                spdlog::error("Couldn't open audio stream from file {}", pImpl->fileName);
-                throw std::runtime_error("Couldn't open audio stream from file " + pImpl->fileName);
-            }
-        } else {
-            pImpl->vorbis = stb_vorbis_open_memory(
-                (const unsigned char *)pImpl->buffer, pImpl->bufferByteSize, nullptr, nullptr);
-            if (!pImpl->vorbis) {
-                spdlog::error("Couldn't open audio stream from memory");
-                throw std::runtime_error("Couldn't open audio stream from memory");
-            }
-        }
-        stb_vorbis_info info = stb_vorbis_get_info(pImpl->vorbis);
-        if (channels != info.channels || sampleRate != info.sample_rate) {
-            spdlog::error("Unexpected settings on cloned vorbis stream");
-            throw std::runtime_error("Unexpected settings on cloned vorbis stream");
-        }
+Stream::Stream(Stream &&) noexcept = default;
+Stream &Stream::operator=(Stream &&) noexcept = default;
+Stream::~Stream() = default;
+
+Stream Stream::Clone() const {
+    if (pImpl->streamSource == StreamSource::File) {
+        return Stream(pImpl->fileName);
     } else {
-        pImpl->mp3 = new drmp3();
-        if (pImpl->streamSource == StreamSource::File) {
-            if (!drmp3_init_file(pImpl->mp3, pImpl->fileName.c_str(), nullptr)) {
-                delete pImpl->mp3;
-                spdlog::error("Couldn't open audio stream from file {}", pImpl->fileName);
-                throw std::runtime_error("Couldn't open audio stream from file " + pImpl->fileName);
-            }
-        } else {
-            if (!drmp3_init_memory(pImpl->mp3, pImpl->buffer, pImpl->bufferByteSize, nullptr)) {
-                delete pImpl->mp3;
-                spdlog::error("Couldn't open audio stream from memory");
-                throw std::runtime_error("Couldn't open audio stream from memory");
-            }
-        }
-        if (channels != pImpl->mp3->channels || sampleRate != pImpl->mp3->sampleRate) {
-            delete pImpl->mp3;
-            spdlog::error("Unexpected settings on cloned mp3 stream");
-            throw std::runtime_error("Unexpected settings on cloned mp3 stream");
-        }
+        return Stream(pImpl->buffer, pImpl->bufferByteSize);
     }
 }
 
-Stream::~Stream() {
-    if (pImpl->vorbis) {
-        stb_vorbis_close(pImpl->vorbis);
-        pImpl->vorbis = nullptr;
-    }
-    if (pImpl->mp3) {
-        drmp3_uninit(pImpl->mp3);
-        delete pImpl->mp3;
-        pImpl->mp3 = nullptr;
-    }
-}
-
-uint32_t Stream::GetFrames(int16_t *buffer, uint32_t frames, bool *loop) {
-    if (loop) {
-        *loop = false;
+uint32_t Stream::GetFrames(int16_t *buffer, uint32_t frames, bool canLoop, bool *didLoop) {
+    if (didLoop) {
+        *didLoop = false;
     }
 
     if (pImpl->vorbis) {
         uint32_t samples = static_cast<uint32_t>(stb_vorbis_get_samples_short_interleaved(
-            pImpl->vorbis, channels, buffer, frames * channels));
-        if (loop && samples < frames) {
-            *loop = true;
-            stb_vorbis_seek_start(pImpl->vorbis);
-            return samples + stb_vorbis_get_samples_short_interleaved(pImpl->vorbis,
+            pImpl->vorbis.get(), channels, buffer, frames * channels));
+        if (canLoop && samples < frames) {
+            if (didLoop) {
+                *didLoop = true;
+            }
+            stb_vorbis_seek_start(pImpl->vorbis.get());
+            return samples + stb_vorbis_get_samples_short_interleaved(pImpl->vorbis.get(),
                                  channels,
                                  buffer + samples * channels,
                                  (frames - samples) * channels);
@@ -155,13 +122,15 @@ uint32_t Stream::GetFrames(int16_t *buffer, uint32_t frames, bool *loop) {
         }
     } else {
         uint32_t samples =
-            static_cast<uint32_t>(drmp3_read_pcm_frames_s16(pImpl->mp3, frames, buffer));
-        if (loop && samples < frames) {
-            *loop = true;
-            drmp3_seek_to_pcm_frame(pImpl->mp3, 0);
+            static_cast<uint32_t>(drmp3_read_pcm_frames_s16(pImpl->mp3.get(), frames, buffer));
+        if (canLoop && samples < frames) {
+            if (didLoop) {
+                *didLoop = true;
+            }
+            drmp3_seek_to_pcm_frame(pImpl->mp3.get(), 0);
 
             return samples + static_cast<uint32_t>(drmp3_read_pcm_frames_s16(
-                                 pImpl->mp3, frames - samples, buffer + samples * channels));
+                                 pImpl->mp3.get(), frames - samples, buffer + samples * channels));
         } else {
             return samples;
         }
