@@ -58,6 +58,7 @@ All dependencies are included as git submodules in `Dependencies/`:
 - [dr_libs](https://github.com/mackron/dr_libs) (Public Domain / MIT-0)
 - [stb](https://github.com/nothings/stb) (MIT / Public Domain)
 - [doctest](https://github.com/doctest/doctest) (MIT) - test only
+- [Tracy](https://github.com/wolfpld/tracy) (BSD 3-Clause) - Profile build only
 - [SquirrelNoise5](Dependencies/SquirrelNoise5.hpp) (CC-BY-3.0 US) - vendored
 
 See [Dependencies/LICENSES.md](Dependencies/LICENSES.md) for full license texts.
