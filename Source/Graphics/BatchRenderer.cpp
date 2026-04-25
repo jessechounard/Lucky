@@ -557,7 +557,6 @@ void BatchRenderer::Flush() {
         targetFormat = graphicsDevice->GetSwapchainFormat();
     }
 
-    graphicsDevice->SetBlendMode(blendMode);
     graphicsDevice->BeginRenderPass();
 
     SDL_GPURenderPass *renderPass = graphicsDevice->GetCurrentRenderPass();

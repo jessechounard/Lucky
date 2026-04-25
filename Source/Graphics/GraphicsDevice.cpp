@@ -10,6 +10,29 @@
 
 namespace Lucky {
 
+namespace {
+
+const char *gpuTextureFormatName(SDL_GPUTextureFormat format) {
+    switch (format) {
+    case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM:
+        return "R8G8B8A8_UNORM";
+    case SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM:
+        return "B8G8R8A8_UNORM";
+    case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM_SRGB:
+        return "R8G8B8A8_UNORM_SRGB";
+    case SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM_SRGB:
+        return "B8G8R8A8_UNORM_SRGB";
+    case SDL_GPU_TEXTUREFORMAT_R16G16B16A16_FLOAT:
+        return "R16G16B16A16_FLOAT";
+    case SDL_GPU_TEXTUREFORMAT_R10G10B10A2_UNORM:
+        return "R10G10B10A2_UNORM";
+    default:
+        return "unknown";
+    }
+}
+
+} // namespace
+
 GraphicsDevice::GraphicsDevice(SDL_Window *windowHandle, const char *gpuDriver)
     : windowHandle(windowHandle) {
     SDL_assert(windowHandle != nullptr);
@@ -36,10 +59,7 @@ GraphicsDevice::GraphicsDevice(SDL_Window *windowHandle, const char *gpuDriver)
     clearColor = Color::Black;
     needsClear = true;
 
-    blendMode = BlendMode::PremultipliedAlpha;
-
-    scissorsEnabled = false;
-    drawCallsThisFrame = 0;
+    scissorEnabled = false;
 
     commandBuffer = nullptr;
     currentRenderPass = nullptr;
@@ -47,27 +67,6 @@ GraphicsDevice::GraphicsDevice(SDL_Window *windowHandle, const char *gpuDriver)
     currentComputePass = nullptr;
     swapchainTexture = nullptr;
     currentRenderTarget = nullptr;
-    drawableW = 0;
-    drawableH = 0;
-
-    auto gpuTextureFormatName = [](SDL_GPUTextureFormat format) -> const char * {
-        switch (format) {
-        case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM:
-            return "R8G8B8A8_UNORM";
-        case SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM:
-            return "B8G8R8A8_UNORM";
-        case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM_SRGB:
-            return "R8G8B8A8_UNORM_SRGB";
-        case SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM_SRGB:
-            return "B8G8R8A8_UNORM_SRGB";
-        case SDL_GPU_TEXTUREFORMAT_R16G16B16A16_FLOAT:
-            return "R16G16B16A16_FLOAT";
-        case SDL_GPU_TEXTUREFORMAT_R10G10B10A2_UNORM:
-            return "R10G10B10A2_UNORM";
-        default:
-            return "unknown";
-        }
-    };
 
     int windowW, windowH;
     SDL_GetWindowSize(windowHandle, &windowW, &windowH);
@@ -94,6 +93,7 @@ GraphicsDevice::~GraphicsDevice() {
 }
 
 void GraphicsDevice::SetDepthEnabled(bool enabled) {
+    SDL_assert(currentRenderPass == nullptr);
     depthEnabled = enabled;
 }
 
@@ -157,26 +157,22 @@ void GraphicsDevice::SetClearColor(const Color &color) {
     needsClear = true;
 }
 
-void GraphicsDevice::SetBlendMode(BlendMode mode) {
-    blendMode = mode;
-}
-
-void GraphicsDevice::EnableScissorsRectangle(const Rectangle &scissorsRect) {
-    scissorsEnabled = true;
-    scissorsRectangle = scissorsRect;
+void GraphicsDevice::EnableScissorRectangle(const Rectangle &scissorRect) {
+    scissorEnabled = true;
+    scissorRectangle = scissorRect;
 
     if (currentRenderPass) {
         SDL_Rect rect;
-        rect.x = scissorsRectangle.x;
-        rect.y = scissorsRectangle.y;
-        rect.w = scissorsRectangle.width;
-        rect.h = scissorsRectangle.height;
+        rect.x = scissorRectangle.x;
+        rect.y = scissorRectangle.y;
+        rect.w = scissorRectangle.width;
+        rect.h = scissorRectangle.height;
         SDL_SetGPUScissor(currentRenderPass, &rect);
     }
 }
 
-void GraphicsDevice::DisableScissorsRectangle() {
-    scissorsEnabled = false;
+void GraphicsDevice::DisableScissorRectangle() {
+    scissorEnabled = false;
 
     if (currentRenderPass) {
         // Reset scissor to full viewport
@@ -222,7 +218,7 @@ bool GraphicsDevice::IsUsingRenderTarget() const {
 }
 
 void GraphicsDevice::BeginFrame() {
-    drawCallsThisFrame = 0;
+    SDL_assert(commandBuffer == nullptr);
 
     commandBuffer = SDL_AcquireGPUCommandBuffer(device);
     if (!commandBuffer) {
@@ -230,6 +226,7 @@ void GraphicsDevice::BeginFrame() {
         return;
     }
 
+    uint32_t drawableW = 0, drawableH = 0;
     if (!SDL_WaitAndAcquireGPUSwapchainTexture(
             commandBuffer, windowHandle, &swapchainTexture, &drawableW, &drawableH)) {
         spdlog::error("Failed to acquire swapchain texture: {}", SDL_GetError());
@@ -257,6 +254,8 @@ void GraphicsDevice::BeginFrame() {
 }
 
 void GraphicsDevice::EndFrame() {
+    SDL_assert(commandBuffer != nullptr);
+
     if (currentComputePass) {
         EndComputePass();
     }
@@ -276,11 +275,10 @@ void GraphicsDevice::EndFrame() {
 }
 
 void GraphicsDevice::BeginRenderPass() {
-    if (currentRenderPass) {
-        return; // Already in a render pass
-    }
+    SDL_assert(commandBuffer != nullptr);
+    SDL_assert(currentRenderPass == nullptr);
 
-    if (!commandBuffer) {
+    if (!commandBuffer || currentRenderPass) {
         return;
     }
 
@@ -341,12 +339,12 @@ void GraphicsDevice::BeginRenderPass() {
         gpuVp.max_depth = 1.0f;
         SDL_SetGPUViewport(currentRenderPass, &gpuVp);
 
-        if (scissorsEnabled) {
+        if (scissorEnabled) {
             SDL_Rect rect;
-            rect.x = scissorsRectangle.x;
-            rect.y = scissorsRectangle.y;
-            rect.w = scissorsRectangle.width;
-            rect.h = scissorsRectangle.height;
+            rect.x = scissorRectangle.x;
+            rect.y = scissorRectangle.y;
+            rect.w = scissorRectangle.width;
+            rect.h = scissorRectangle.height;
             SDL_SetGPUScissor(currentRenderPass, &rect);
         }
     }
@@ -361,6 +359,8 @@ void GraphicsDevice::EndRenderPass() {
 
 void GraphicsDevice::BeginComputePass(
     const SDL_GPUStorageBufferReadWriteBinding *bufferBindings, uint32_t numBufferBindings) {
+    SDL_assert(commandBuffer != nullptr);
+
     if (!commandBuffer) {
         return;
     }
@@ -387,6 +387,8 @@ void GraphicsDevice::EndComputePass() {
 }
 
 void GraphicsDevice::BeginCopyPass() {
+    SDL_assert(commandBuffer != nullptr);
+
     if (!commandBuffer) {
         return;
     }
@@ -412,7 +414,7 @@ void GraphicsDevice::EndCopyPass() {
     }
 }
 
-SDL_GPUTexture *GraphicsDevice::GetCurrentColorTarget() {
+SDL_GPUTexture *GraphicsDevice::GetCurrentColorTarget() const {
     if (currentRenderTarget) {
         return currentRenderTarget->GetGPUTexture();
     }
