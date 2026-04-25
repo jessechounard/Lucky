@@ -20,7 +20,7 @@ struct AudioInstance {
     AudioInstance(AudioPlayer &player, bool shouldLoop, AudioState state, AudioRef ref,
         const std::string &group, int16_t channels, int32_t sampleRate)
         : player(player), audioStream(nullptr), shouldLoop(shouldLoop), bound(false), state(state),
-          ref(ref), group(group), channels(channels), sampleRate(sampleRate) {
+          ref(ref), group(group), channels(channels), sampleRate(sampleRate), loopCount(0) {
         SDL_AudioSpec sourceSpec{SDL_AUDIO_S16, channels, sampleRate};
 
         audioStream = SDL_CreateAudioStream(&sourceSpec, &sourceSpec);
@@ -73,6 +73,10 @@ struct AudioInstance {
         bool didLoop = false;
         auto frameCount = getFramesFromSource(workBuffer.data(), framesNeeded, &didLoop);
 
+        if (didLoop) {
+            ++loopCount;
+        }
+
         if (frameCount == 0) {
             SDL_FlushAudioStream(audioStream);
             if (framesQueued == 0) {
@@ -102,6 +106,7 @@ struct AudioInstance {
     std::string group;
     int16_t channels;
     int32_t sampleRate;
+    uint32_t loopCount;
     std::vector<int16_t> workBuffer;
 };
 
@@ -392,15 +397,26 @@ void AudioPlayer::Stop(const AudioRef &audioRef) {
     pImpl->instances.erase(iterator);
 }
 
-AudioState AudioPlayer::GetState(const AudioRef &audioRef) {
+AudioState AudioPlayer::GetState(const AudioRef &audioRef) const {
     auto iterator = std::find_if(pImpl->instances.begin(),
         pImpl->instances.end(),
-        [audioRef](std::unique_ptr<AudioInstance> &ai) { return ai->ref == audioRef; });
+        [audioRef](const std::unique_ptr<AudioInstance> &ai) { return ai->ref == audioRef; });
     if (iterator == pImpl->instances.end()) {
         return AudioState::Stopped;
     }
 
     return (*iterator)->state;
+}
+
+uint32_t AudioPlayer::GetLoopCount(const AudioRef &audioRef) const {
+    auto iterator = std::find_if(pImpl->instances.begin(),
+        pImpl->instances.end(),
+        [audioRef](const std::unique_ptr<AudioInstance> &ai) { return ai->ref == audioRef; });
+    if (iterator == pImpl->instances.end()) {
+        return 0;
+    }
+
+    return (*iterator)->loopCount;
 }
 
 void AudioPlayer::Update() {

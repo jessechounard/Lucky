@@ -80,7 +80,7 @@ struct Sound {
      *          unless the cursor hit the end with `canLoop` false.
      */
     uint32_t GetFrames(uint32_t &position, int16_t *buffer, uint32_t frameCount, bool canLoop,
-        bool *didLoop = nullptr);
+        bool *didLoop = nullptr) const;
 };
 
 } // namespace Lucky

@@ -16,12 +16,11 @@ namespace Lucky {
 /**
  * Opaque handle identifying a single playback started by AudioPlayer::Play.
  *
- * Values are monotonically increasing; 0 is reserved as an invalid sentinel
- * returned when Play fails (e.g. unknown group in release builds). A ref
- * remains valid from Play() until the sound is stopped or runs to its
- * natural end with `canLoop == false`. After natural completion, the
- * matching instance is removed and the ref becomes stale -- AudioPlayer
- * silently tolerates stale refs in Pause/Resume/Stop/GetState.
+ * 0 is reserved as an invalid sentinel returned when Play fails (e.g. unknown group in release
+ * builds). A ref remains valid from Play() until the sound is stopped or runs to its natural end
+ * with `canLoop == false`. After natural completion, the matching instance is removed and the ref
+ * becomes stale. AudioPlayer silently ignores stale refs in
+ * Pause/Resume/Stop/GetState/GetLoopCount.
  */
 typedef uint32_t AudioRef;
 
@@ -82,8 +81,6 @@ struct AudioDevice {
  *
  * Effective gain per instance = MasterVolume * GroupVolume. Both sit in
  * linear [0, 1] by convention (values above 1 are allowed but may clip).
- * Per-instance gain is not currently exposed; add it via a new method if
- * needed.
  *
  * # Update cadence
  *
@@ -262,8 +259,7 @@ class AudioPlayer {
     /**
      * Stops and discards a single playback.
      *
-     * The ref becomes stale after this call. No-op if the ref is already
-     * stale.
+     * The ref becomes stale after this call. No-op if the ref is already stale.
      */
     void Stop(const AudioRef &audioRef);
 
@@ -274,23 +270,36 @@ class AudioPlayer {
      *          Returns AudioState::Stopped for a stale ref (including after
      *          natural completion).
      */
-    AudioState GetState(const AudioRef &audioRef);
+    AudioState GetState(const AudioRef &audioRef) const;
 
     /**
-     * Tops up SDL's audio queue and retires finished playbacks.
+     * Returns the number of times this playback has wrapped from the end
+     * of its source back to the beginning.
      *
-     * Must be called at least ~30 Hz from the application's main loop.
-     * For every playing instance, pushes enough samples to maintain a
-     * ~1/30s queue depth; for instances whose source has ended with
-     * `loop == false`, marks them Stopped and removes them on exit.
+     * Increments by 1 each Update tick during which a loop wrap was
+     * observed. Reaches non-zero only when Play was called with `loop ==
+     * true`. Returns 0 for stale refs.
+     *
+     * The counter is updated at Update granularity, not at sample-accurate
+     * loop boundaries. To detect a "just looped" event, sample the value
+     * each frame and compare against the previous reading.
+     */
+    uint32_t GetLoopCount(const AudioRef &audioRef) const;
+
+    /**
+     * Tops up SDL's audio queue and retires finished playbacks. Call this function regularly.
+     *
+     * We currently push enough samples (if available) to ensure that there's 1/30 of a second worth
+     * of samples in the queue. This should be enough to allow for the occasional slowdown without
+     * taking up huge amounts of memory. This might made configurable in the future.
      */
     void Update();
 
   private:
     AudioPlayer(const AudioPlayer &) = delete;
-    AudioPlayer(const AudioPlayer &&) = delete;
+    AudioPlayer(AudioPlayer &&) = delete;
     AudioPlayer &operator=(const AudioPlayer &) = delete;
-    AudioPlayer &operator=(const AudioPlayer &&) = delete;
+    AudioPlayer &operator=(AudioPlayer &&) = delete;
 
     struct Impl;
     std::unique_ptr<Impl> pImpl;

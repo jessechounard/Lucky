@@ -48,7 +48,7 @@ Sound::Sound(const void *buffer, uint32_t bufferByteSize) {
 }
 
 uint32_t Sound::GetFrames(
-    uint32_t &position, int16_t *buffer, uint32_t frameCount, bool canLoop, bool *didLoop) {
+    uint32_t &position, int16_t *buffer, uint32_t frameCount, bool canLoop, bool *didLoop) const {
     if (didLoop) {
         *didLoop = false;
     }
