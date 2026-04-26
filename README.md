@@ -57,6 +57,7 @@ All dependencies are included as git submodules in `Dependencies/`:
 - [nlohmann/json](https://github.com/nlohmann/json) (MIT)
 - [dr_libs](https://github.com/mackron/dr_libs) (Public Domain / MIT-0)
 - [stb](https://github.com/nothings/stb) (MIT / Public Domain)
+- [cgltf](https://github.com/jkuhlmann/cgltf) (MIT)
 - [doctest](https://github.com/doctest/doctest) (MIT) - test only
 - [Tracy](https://github.com/wolfpld/tracy) (BSD 3-Clause) - Profile build only
 - [SquirrelNoise5](Dependencies/SquirrelNoise5.hpp) (CC-BY-3.0 US) - vendored
