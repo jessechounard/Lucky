@@ -35,8 +35,7 @@ BatchRenderer::BatchRenderer(GraphicsDevice &graphicsDevice, uint32_t maximumTri
 
     activeFragmentShader = fragmentShader.get();
 
-    vertexBuffer = std::make_unique<VertexBuffer<BatchVertex>>(
-        graphicsDevice, VertexBufferType::Dynamic, maximumVertices);
+    vertexBuffer = std::make_unique<VertexBuffer<BatchVertex>>(graphicsDevice, maximumVertices);
 
     vertices.resize(maximumVertices);
 

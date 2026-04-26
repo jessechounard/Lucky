@@ -29,8 +29,7 @@ SlugRenderer::SlugRenderer(GraphicsDevice &graphicsDevice, uint32_t maxTriangles
 
     vertices.resize(maxVertices);
 
-    vertexBuffer = std::make_unique<VertexBuffer<SlugVertex>>(
-        graphicsDevice, VertexBufferType::Dynamic, maxVertices);
+    vertexBuffer = std::make_unique<VertexBuffer<SlugVertex>>(graphicsDevice, maxVertices);
 }
 
 SlugRenderer::~SlugRenderer() {
