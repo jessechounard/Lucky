@@ -129,7 +129,6 @@
     <ClCompile Include="..\Source\Audio\Sound.cpp" />
     <ClCompile Include="..\Source\Audio\Stream.cpp" />
     <ClCompile Include="..\Source\Graphics\BatchRenderer.cpp" />
-    <ClCompile Include="..\Source\Graphics\Color.cpp" />
     <ClCompile Include="..\Source\Graphics\GraphicsDevice.cpp" />
     <ClCompile Include="..\Source\Graphics\ParticleEmitter.cpp" />
     <ClCompile Include="..\Source\Graphics\SdfFont.cpp" />

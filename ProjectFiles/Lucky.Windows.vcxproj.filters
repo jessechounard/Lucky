@@ -42,9 +42,6 @@
     <ClCompile Include="..\Source\Graphics\BatchRenderer.cpp">
       <Filter>Source\Graphics</Filter>
     </ClCompile>
-    <ClCompile Include="..\Source\Graphics\Color.cpp">
-      <Filter>Source\Graphics</Filter>
-    </ClCompile>
     <ClCompile Include="..\Source\Graphics\GraphicsDevice.cpp">
       <Filter>Source\Graphics</Filter>
     </ClCompile>
