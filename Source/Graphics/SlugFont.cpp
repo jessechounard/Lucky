@@ -65,7 +65,7 @@ SlugFont::~SlugFont() {
         hb_blob_destroy(hbBlob);
 }
 
-SlugGlyphInfo SlugFont::encodeGlyph(uint32_t glyphIndex) {
+SlugGlyphInfo SlugFont::EncodeGlyph(uint32_t glyphIndex) {
     auto it = glyphCache.find(glyphIndex);
     if (it != glyphCache.end())
         return it->second;
@@ -148,7 +148,7 @@ SlugGlyphInfo SlugFont::encodeGlyph(uint32_t glyphIndex) {
     return gi;
 }
 
-void SlugFont::uploadAtlas() {
+void SlugFont::UploadAtlas() {
     SDL_GPUDevice *device = graphicsDevice.GetDevice();
 
     uint32_t requiredSize = atlasCursor * 16; // 16 bytes per int4
@@ -208,29 +208,29 @@ void SlugFont::PreloadAscii() {
     for (uint32_t c = 0x20; c <= 0x7E; c++) {
         hb_codepoint_t glyphIndex;
         if (hb_font_get_nominal_glyph(hbFont, c, &glyphIndex)) {
-            encodeGlyph(glyphIndex);
+            EncodeGlyph(glyphIndex);
         }
     }
-    uploadAtlas();
+    UploadAtlas();
 }
 
 void SlugFont::PreloadString(const std::string &text) {
     if (text.empty())
         return;
 
-    shapeText(text);
+    ShapeText(text);
 
     unsigned int glyphCount;
     hb_glyph_info_t *glyphInfo = hb_buffer_get_glyph_infos(hbBuffer, &glyphCount);
 
     for (unsigned int i = 0; i < glyphCount; i++) {
-        encodeGlyph(glyphInfo[i].codepoint);
+        EncodeGlyph(glyphInfo[i].codepoint);
     }
 
-    uploadAtlas();
+    UploadAtlas();
 }
 
-void SlugFont::shapeText(const std::string &text) {
+void SlugFont::ShapeText(const std::string &text) {
     hb_buffer_clear_contents(hbBuffer);
     hb_buffer_add_utf8(hbBuffer, text.c_str(), (int)text.size(), 0, (int)text.size());
     hb_buffer_guess_segment_properties(hbBuffer);
@@ -241,7 +241,7 @@ glm::vec2 SlugFont::MeasureString(const std::string &text, float fontSize) {
     if (text.empty() || fontSize <= 0.0f)
         return {0.0f, 0.0f};
 
-    shapeText(text);
+    ShapeText(text);
 
     unsigned int glyphCount;
     hb_glyph_position_t *glyphPos = hb_buffer_get_glyph_positions(hbBuffer, &glyphCount);
@@ -272,7 +272,7 @@ void SlugFont::DrawString(SlugRenderer &renderer, const std::string &text, float
     if (text.empty() || fontSize <= 0.0f)
         return;
 
-    shapeText(text);
+    ShapeText(text);
 
     unsigned int glyphCount;
     hb_glyph_info_t *glyphInfo = hb_buffer_get_glyph_infos(hbBuffer, &glyphCount);
@@ -283,12 +283,12 @@ void SlugFont::DrawString(SlugRenderer &renderer, const std::string &text, float
     for (unsigned int i = 0; i < glyphCount; i++) {
         uint32_t glyphId = glyphInfo[i].codepoint;
         if (glyphCache.find(glyphId) == glyphCache.end()) {
-            encodeGlyph(glyphId);
+            EncodeGlyph(glyphId);
             needsUpload = true;
         }
     }
     if (needsUpload) {
-        uploadAtlas();
+        UploadAtlas();
         renderer.UpdateAtlas(*this);
     }
 

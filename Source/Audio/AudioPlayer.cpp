@@ -49,7 +49,7 @@ struct AudioInstance {
         }
     }
 
-    virtual uint32_t getFramesFromSource(int16_t *buffer, uint32_t framesNeeded, bool *didLoop) = 0;
+    virtual uint32_t GetFramesFromSource(int16_t *buffer, uint32_t framesNeeded, bool *didLoop) = 0;
 
     PutFramesResult PutSamplesStream(uint32_t desiredFrameCount) {
         if (!audioStream) {
@@ -71,7 +71,7 @@ struct AudioInstance {
             workBuffer.resize(samplesNeeded);
         }
         bool didLoop = false;
-        auto frameCount = getFramesFromSource(workBuffer.data(), framesNeeded, &didLoop);
+        auto frameCount = GetFramesFromSource(workBuffer.data(), framesNeeded, &didLoop);
 
         if (didLoop) {
             ++loopCount;
@@ -117,7 +117,7 @@ struct SoundInstance : public AudioInstance {
           sound(sound), position(0) {
     }
 
-    uint32_t getFramesFromSource(int16_t *buffer, uint32_t framesNeeded, bool *didLoop) override {
+    uint32_t GetFramesFromSource(int16_t *buffer, uint32_t framesNeeded, bool *didLoop) override {
         return sound->GetFrames(position, buffer, framesNeeded, shouldLoop, didLoop);
     }
 
@@ -133,7 +133,7 @@ struct StreamInstance : public AudioInstance {
           stream(std::make_unique<Stream>(stream->Clone())) {
     }
 
-    uint32_t getFramesFromSource(int16_t *buffer, uint32_t framesNeeded, bool *didLoop) override {
+    uint32_t GetFramesFromSource(int16_t *buffer, uint32_t framesNeeded, bool *didLoop) override {
         return stream->GetFrames(buffer, framesNeeded, shouldLoop, didLoop);
     }
 

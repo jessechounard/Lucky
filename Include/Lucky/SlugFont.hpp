@@ -216,9 +216,9 @@ class SlugFont {
     }
 
   private:
-    SlugGlyphInfo encodeGlyph(uint32_t glyphIndex);
-    void uploadAtlas();
-    void shapeText(const std::string &text);
+    SlugGlyphInfo EncodeGlyph(uint32_t glyphIndex);
+    void UploadAtlas();
+    void ShapeText(const std::string &text);
 
     GraphicsDevice &graphicsDevice;
 

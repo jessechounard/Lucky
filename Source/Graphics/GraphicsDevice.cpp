@@ -12,7 +12,7 @@ namespace Lucky {
 
 namespace {
 
-const char *gpuTextureFormatName(SDL_GPUTextureFormat format) {
+const char *GPUTextureFormatName(SDL_GPUTextureFormat format) {
     switch (format) {
     case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM:
         return "R8G8B8A8_UNORM";
@@ -74,7 +74,7 @@ GraphicsDevice::GraphicsDevice(SDL_Window *windowHandle, const char *gpuDriver)
 
     spdlog::info("GPU: SDL_GPU device created");
     spdlog::info("  Driver: {}", SDL_GetGPUDeviceDriver(device));
-    spdlog::info("  Swapchain format: {}", gpuTextureFormatName(swapchainFormat));
+    spdlog::info("  Swapchain format: {}", GPUTextureFormatName(swapchainFormat));
     spdlog::info(
         "  Window size: {}x{}, drawable: {}x{}", windowW, windowH, screenWidth, screenHeight);
     spdlog::info("  Fullscreen: {}", (flags & SDL_WINDOW_FULLSCREEN) ? "yes" : "no");
