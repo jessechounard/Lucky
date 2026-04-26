@@ -10,9 +10,8 @@
 #include <Lucky/Color.hpp>
 #include <Lucky/GraphicsDevice.hpp>
 #include <Lucky/Shader.hpp>
-#include <Lucky/Texture.hpp>
 #include <Lucky/Rectangle.hpp>
-#include <Lucky/Vertex.hpp>
+#include <Lucky/Texture.hpp>
 #include <spdlog/spdlog.h>
 
 using namespace glm;
@@ -36,7 +35,7 @@ BatchRenderer::BatchRenderer(GraphicsDevice &graphicsDevice, uint32_t maximumTri
 
     activeFragmentShader = fragmentShader.get();
 
-    vertexBuffer = std::make_unique<VertexBuffer<Vertex>>(
+    vertexBuffer = std::make_unique<VertexBuffer<BatchVertex>>(
         graphicsDevice, VertexBufferType::Dynamic, maximumVertices);
 
     vertices.resize(maximumVertices);
@@ -162,7 +161,7 @@ void BatchRenderer::BatchQuadUV(const glm::vec2 &uv0, const glm::vec2 &uv1, cons
         rotate(cx3, cy3);
     }
 
-    Vertex *vertices = &this->vertices[0] + activeVertices;
+    BatchVertex *vertices = &this->vertices[0] + activeVertices;
     vertices->x = cx0;
     vertices->y = cy0;
     vertices->u = uvs[0].first;
@@ -267,7 +266,7 @@ void BatchRenderer::BatchSprite(const Rectangle *sourceRectangle, const glm::vec
     std::swap(uvs[0], uvs[3]);
     std::swap(uvs[1], uvs[2]);
 
-    Vertex *vertices = &this->vertices[0] + activeVertices;
+    BatchVertex *vertices = &this->vertices[0] + activeVertices;
 
     if (rotation == 0.0f) {
         float left = -origin.x * destW + destX;
@@ -386,7 +385,7 @@ void BatchRenderer::BatchQuad(
         Flush();
     }
 
-    Vertex *vertices = &this->vertices[0] + activeVertices;
+    BatchVertex *vertices = &this->vertices[0] + activeVertices;
 
     vertices->x = corners[0].x;
     vertices->y = corners[0].y;
@@ -435,19 +434,19 @@ void BatchRenderer::BatchQuad(
     activeVertices += 6;
 }
 
-void BatchRenderer::BatchTriangles(const Vertex *triangleVertices, const int triangleCount) {
+void BatchRenderer::BatchTriangles(const BatchVertex *triangleVertices, const int triangleCount) {
     SDL_assert(batchStarted);
     SDL_assert(triangleVertices != nullptr);
     SDL_assert(triangleCount > 0);
 
-    const Vertex *currentTriangleVertex = triangleVertices;
+    const BatchVertex *currentTriangleVertex = triangleVertices;
 
     for (int index = 0; index < triangleCount * 3; index += 3) {
         if (activeVertices + 3 > maximumVertices) {
             Flush();
         }
 
-        Vertex *vertex = &vertices[activeVertices];
+        BatchVertex *vertex = &vertices[activeVertices];
         *vertex++ = *currentTriangleVertex++;
         *vertex++ = *currentTriangleVertex++;
         *vertex++ = *currentTriangleVertex++;
@@ -473,7 +472,7 @@ SDL_GPUGraphicsPipeline *BatchRenderer::GetOrCreatePipeline(
     SDL_zero(vbufDesc);
     vbufDesc.slot = 0;
     vbufDesc.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
-    vbufDesc.pitch = sizeof(Vertex);
+    vbufDesc.pitch = sizeof(BatchVertex);
 
     SDL_GPUVertexAttribute vertexAttrs[3];
     SDL_zero(vertexAttrs);
@@ -481,17 +480,17 @@ SDL_GPUGraphicsPipeline *BatchRenderer::GetOrCreatePipeline(
     vertexAttrs[0].buffer_slot = 0;
     vertexAttrs[0].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2;
     vertexAttrs[0].location = 0;
-    vertexAttrs[0].offset = offsetof(Vertex, x);
+    vertexAttrs[0].offset = offsetof(BatchVertex, x);
 
     vertexAttrs[1].buffer_slot = 0;
     vertexAttrs[1].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2;
     vertexAttrs[1].location = 1;
-    vertexAttrs[1].offset = offsetof(Vertex, u);
+    vertexAttrs[1].offset = offsetof(BatchVertex, u);
 
     vertexAttrs[2].buffer_slot = 0;
     vertexAttrs[2].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4;
     vertexAttrs[2].location = 2;
-    vertexAttrs[2].offset = offsetof(Vertex, r);
+    vertexAttrs[2].offset = offsetof(BatchVertex, r);
 
     pipelineCI.vertex_input_state.num_vertex_buffers = 1;
     pipelineCI.vertex_input_state.vertex_buffer_descriptions = &vbufDesc;

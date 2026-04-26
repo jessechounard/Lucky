@@ -3,7 +3,6 @@
 #include <Lucky/BatchRenderer.hpp>
 #include <Lucky/Color.hpp>
 #include <Lucky/GraphicsDevice.hpp>
-#include <Lucky/Vertex.hpp>
 
 #include "../DemoBase.hpp"
 #include "../DemoRegistry.hpp"
@@ -53,7 +52,7 @@ class HelloTriangleDemo : public LuckyDemos::DemoBase {
         const float leftX = screenWidth * 0.20f;
         const float rightX = screenWidth * 0.80f;
 
-        Lucky::Vertex triangle[3] = {
+        Lucky::BatchVertex triangle[3] = {
             // Top vertex -- red
             {centerX, topY, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f},
             // Bottom-left vertex -- green

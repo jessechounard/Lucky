@@ -90,9 +90,6 @@
     <ClCompile Include="..\Source\Math\Collision.cpp">
       <Filter>Source\Math</Filter>
     </ClCompile>
-    <ClCompile Include="..\Source\Math\MathConstants.cpp">
-      <Filter>Source\Math</Filter>
-    </ClCompile>
     <ClCompile Include="..\Source\Math\MathHelpers.cpp">
       <Filter>Source\Math</Filter>
     </ClCompile>
@@ -195,9 +192,6 @@
       <Filter>Include</Filter>
     </ClInclude>
     <ClInclude Include="..\Include\Lucky\Types.hpp">
-      <Filter>Include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Include\Lucky\Vertex.hpp">
       <Filter>Include</Filter>
     </ClInclude>
     <ClInclude Include="..\Include\Lucky\VertexBuffer.hpp">

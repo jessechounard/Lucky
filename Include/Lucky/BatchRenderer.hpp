@@ -7,16 +7,29 @@
 
 #include <glm/glm.hpp>
 #include <Lucky/GraphicsDevice.hpp>
+#include <Lucky/Rectangle.hpp>
 #include <Lucky/Shader.hpp>
 #include <Lucky/Types.hpp>
 #include <Lucky/VertexBuffer.hpp>
-#include <Lucky/Rectangle.hpp>
-#include <Lucky/Vertex.hpp>
 
 namespace Lucky {
 
 struct BatchRenderer;
 struct Color;
+
+/**
+ * The vertex layout consumed by BatchRenderer's pipelines: position, UV,
+ * color.
+ *
+ * 32 bytes, packed in declaration order: vec2 position, vec2 uv, vec4 rgba.
+ * Other renderers in Lucky (SlugRenderer, ShapeRenderer) define their own
+ * vertex types matching their specialized pipelines.
+ */
+struct BatchVertex {
+    float x, y;       /**< pixel-space position. */
+    float u, v;       /**< texture coordinates, normalized to [0, 1]. */
+    float r, g, b, a; /**< color, linear [0, 1] per channel. */
+};
 
 inline constexpr UVMode operator&(UVMode lhs, UVMode rhs) {
     return static_cast<UVMode>(static_cast<uint32_t>(lhs) & static_cast<uint32_t>(rhs));
@@ -255,8 +268,8 @@ struct BatchRenderer {
     /**
      * Appends raw triangles to the current batch.
      *
-     * Each triangle is specified by three consecutive Vertex entries in
-     * `triangleVertices`. Vertices carry per-vertex position, UV, and
+     * Each triangle is specified by three consecutive BatchVertex entries
+     * in `triangleVertices`. Vertices carry per-vertex position, UV, and
      * color; the GPU interpolates between them.
      *
      * \param triangleVertices a pointer to `triangleCount * 3` vertices.
@@ -264,7 +277,7 @@ struct BatchRenderer {
      * \param triangleCount the number of triangles to append. Must be
      *                      positive.
      */
-    void BatchTriangles(const Vertex *triangleVertices, const int triangleCount);
+    void BatchTriangles(const BatchVertex *triangleVertices, const int triangleCount);
 
     /**
      * Sets the fragment shader uniform data for the current batch.
@@ -293,14 +306,14 @@ struct BatchRenderer {
     std::unique_ptr<Shader> vertexShader;
     std::unique_ptr<Shader> fragmentShader;
     Shader *activeFragmentShader;
-    std::unique_ptr<VertexBuffer<Vertex>> vertexBuffer;
+    std::unique_ptr<VertexBuffer<BatchVertex>> vertexBuffer;
     glm::mat4 transformMatrix;
     BlendMode blendMode;
 
     uint32_t activeVertices;
     uint32_t maximumVertices;
 
-    std::vector<Vertex> vertices;
+    std::vector<BatchVertex> vertices;
 
     bool batchStarted;
 

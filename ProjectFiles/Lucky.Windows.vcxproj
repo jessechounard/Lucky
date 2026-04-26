@@ -145,7 +145,6 @@
     <ClCompile Include="..\Source\Input\Keyboard.cpp" />
     <ClCompile Include="..\Source\Input\Mouse.cpp" />
     <ClCompile Include="..\Source\Math\Collision.cpp" />
-    <ClCompile Include="..\Source\Math\MathConstants.cpp" />
     <ClCompile Include="..\Source\Math\MathHelpers.cpp" />
     <!-- Vendored Dependencies -->
     <ClCompile Include="..\Dependencies\implementations.cpp" />
@@ -202,7 +201,6 @@
     <ClInclude Include="..\Include\Lucky\Texture.hpp" />
     <ClInclude Include="..\Include\Lucky\TextureAtlas.hpp" />
     <ClInclude Include="..\Include\Lucky\Types.hpp" />
-    <ClInclude Include="..\Include\Lucky\Vertex.hpp" />
     <ClInclude Include="..\Include\Lucky\VertexBuffer.hpp" />
   </ItemGroup>
   <!-- Shader Files -->
