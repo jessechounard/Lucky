@@ -26,6 +26,18 @@
     <ClCompile Include="..\Tests\Graphics\ColorTests.cpp">
       <Filter>Graphics</Filter>
     </ClCompile>
+    <ClCompile Include="..\Tests\Graphics\BlendStateTests.cpp">
+      <Filter>Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Tests\Graphics\TypesTests.cpp">
+      <Filter>Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Tests\Audio\SoundTests.cpp">
+      <Filter>Audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Tests\Audio\StreamTests.cpp">
+      <Filter>Audio</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Graphics">
@@ -36,6 +48,9 @@
     </Filter>
     <Filter Include="Utility">
       <UniqueIdentifier>{f14dd698-c653-4aee-961a-34229095cd80}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Audio">
+      <UniqueIdentifier>{8e4d3a1f-2c5b-4f7e-9d8a-1b3c4e5f6a7b}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>
