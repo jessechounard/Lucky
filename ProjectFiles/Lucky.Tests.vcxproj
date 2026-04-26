@@ -122,10 +122,14 @@ xcopy /Y /E /I /Q /EXCLUDE:$(ProjectDir)..\Tests\Fixtures\xcopy-exclude.txt "$(P
     <ClCompile Include="..\Tests\Audio\SoundTests.cpp" />
     <ClCompile Include="..\Tests\Audio\StreamTests.cpp" />
     <ClCompile Include="..\Tests\Graphics\BlendStateTests.cpp" />
+    <ClCompile Include="..\Tests\Graphics\CameraTests.cpp" />
     <ClCompile Include="..\Tests\Graphics\ColorTests.cpp" />
+    <ClCompile Include="..\Tests\Graphics\IndexBufferTests.cpp" />
+    <ClCompile Include="..\Tests\Graphics\MeshTests.cpp" />
     <ClCompile Include="..\Tests\Graphics\ShapeRendererTests.cpp" />
     <ClCompile Include="..\Tests\Graphics\SpriteAnimationTests.cpp" />
     <ClCompile Include="..\Tests\Graphics\TextureAtlasTests.cpp" />
+    <ClCompile Include="..\Tests\Graphics\TextureTests.cpp" />
     <ClCompile Include="..\Tests\Graphics\TypesTests.cpp" />
     <ClCompile Include="..\Tests\Math\CollisionTests.cpp" />
     <ClCompile Include="..\Tests\Math\MathHelpersTests.cpp" />

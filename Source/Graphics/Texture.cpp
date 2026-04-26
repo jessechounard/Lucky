@@ -99,12 +99,32 @@ Texture::Texture(GraphicsDevice &graphicsDevice, TextureType textureType, uint32
     : graphicsDevice(graphicsDevice) {
     SDL_assert(width > 0);
     SDL_assert(height > 0);
+    SDL_assert(textureType == TextureType::Default || textureType == TextureType::RenderTarget);
+    SDL_assert(textureFormat != TextureFormat::Depth);
     if (pixelData != nullptr) {
         const uint32_t expected = ExpectedByteSize(width, height, textureFormat);
         SDL_assert(dataLength >= expected);
     }
 
     Initialize(textureType, width, height, pixelData, dataLength, textureFilter, textureFormat);
+}
+
+Texture::Texture(GraphicsDevice &graphicsDevice, TextureType textureType, uint32_t width,
+    uint32_t height, TextureFormat textureFormat, TextureFilter textureFilter)
+    : graphicsDevice(graphicsDevice) {
+    SDL_assert(width > 0);
+    SDL_assert(height > 0);
+    SDL_assert(textureType != TextureType::Default);
+    if (IsCubeTextureType(textureType)) {
+        SDL_assert(width == height);
+    }
+    if (IsDepthTextureType(textureType)) {
+        SDL_assert(textureFormat == TextureFormat::Depth);
+    } else {
+        SDL_assert(textureFormat != TextureFormat::Depth);
+    }
+
+    Initialize(textureType, width, height, nullptr, 0, textureFilter, textureFormat);
 }
 
 void Texture::Initialize(TextureType textureType, uint32_t width, uint32_t height,
@@ -115,29 +135,42 @@ void Texture::Initialize(TextureType textureType, uint32_t width, uint32_t heigh
     this->textureType = textureType;
     this->textureFormat = textureFormat;
 
+    SDL_GPUDevice *device = graphicsDevice.GetDevice();
+
     SDL_GPUTextureCreateInfo texCI;
     SDL_zero(texCI);
-    texCI.type = SDL_GPU_TEXTURETYPE_2D;
-    texCI.format = (textureFormat == TextureFormat::HDR) ? SDL_GPU_TEXTUREFORMAT_R16G16B16A16_FLOAT
-                                                         : SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+    texCI.type = IsCubeTextureType(textureType) ? SDL_GPU_TEXTURETYPE_CUBE : SDL_GPU_TEXTURETYPE_2D;
+
+    if (textureFormat == TextureFormat::Depth) {
+        texCI.format = graphicsDevice.GetDepthFormat();
+    } else if (textureFormat == TextureFormat::HDR) {
+        texCI.format = SDL_GPU_TEXTUREFORMAT_R16G16B16A16_FLOAT;
+    } else {
+        texCI.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+    }
+
     texCI.width = width;
     texCI.height = height;
-    texCI.layer_count_or_depth = 1;
+    texCI.layer_count_or_depth = IsCubeTextureType(textureType) ? 6 : 1;
     texCI.num_levels = 1;
     texCI.sample_count = SDL_GPU_SAMPLECOUNT_1;
     texCI.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
 
-    if (textureType == TextureType::RenderTarget) {
+    if (textureType == TextureType::RenderTarget || textureType == TextureType::CubeRenderTarget) {
         texCI.usage |= SDL_GPU_TEXTUREUSAGE_COLOR_TARGET;
+    } else if (IsDepthTextureType(textureType)) {
+        texCI.usage |= SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET;
     }
 
-    gpuTexture = SDL_CreateGPUTexture(graphicsDevice.GetDevice(), &texCI);
+    gpuTexture = SDL_CreateGPUTexture(device, &texCI);
     if (!gpuTexture) {
         spdlog::error("Failed to create GPU texture: {}", SDL_GetError());
         throw std::runtime_error("Failed to create GPU texture");
     }
 
-    CreateSampler(textureFilter);
+    if (textureType == TextureType::Default || textureType == TextureType::RenderTarget) {
+        CreateSampler(textureFilter);
+    }
 
     if (pixelData != nullptr) {
         UploadRegion(0, 0, width, height, pixelData, dataLength);

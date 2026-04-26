@@ -42,10 +42,28 @@
     <ClCompile Include="..\Source\Graphics\BatchRenderer.cpp">
       <Filter>Source\Graphics</Filter>
     </ClCompile>
+    <ClCompile Include="..\Source\Graphics\Camera.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Graphics\ForwardRenderer.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
     <ClCompile Include="..\Source\Graphics\GraphicsDevice.cpp">
       <Filter>Source\Graphics</Filter>
     </ClCompile>
+    <ClCompile Include="..\Source\Graphics\Mesh.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Graphics\Model.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Graphics\ModelInstance.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
     <ClCompile Include="..\Source\Graphics\ParticleEmitter.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Source\Graphics\Sampler.cpp">
       <Filter>Source\Graphics</Filter>
     </ClCompile>
     <ClCompile Include="..\Source\Graphics\SdfFont.cpp">
@@ -116,6 +134,9 @@
     <ClInclude Include="..\Include\Lucky\BlendState.hpp">
       <Filter>Include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Camera.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
     <ClInclude Include="..\Include\Lucky\Collections.hpp">
       <Filter>Include</Filter>
     </ClInclude>
@@ -125,10 +146,16 @@
     <ClInclude Include="..\Include\Lucky\Color.hpp">
       <Filter>Include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Include\Lucky\ForwardRenderer.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
     <ClInclude Include="..\Include\Lucky\Gamepad.hpp">
       <Filter>Include</Filter>
     </ClInclude>
     <ClInclude Include="..\Include\Lucky\GraphicsDevice.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\IndexBuffer.hpp">
       <Filter>Include</Filter>
     </ClInclude>
     <ClInclude Include="..\Include\Lucky\Input.hpp">
@@ -143,6 +170,15 @@
     <ClInclude Include="..\Include\Lucky\MathHelpers.hpp">
       <Filter>Include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Mesh.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Model.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\ModelInstance.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
     <ClInclude Include="..\Include\Lucky\Mouse.hpp">
       <Filter>Include</Filter>
     </ClInclude>
@@ -153,6 +189,12 @@
       <Filter>Include</Filter>
     </ClInclude>
     <ClInclude Include="..\Include\Lucky\Rectangle.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Sampler.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Scene3D.hpp">
       <Filter>Include</Filter>
     </ClInclude>
     <ClInclude Include="..\Include\Lucky\SdfFont.hpp">
@@ -201,6 +243,12 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <CustomBuild Include="..\Shaders\forward.frag.hlsl">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\forward.vert.hlsl">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
     <CustomBuild Include="..\Shaders\msdf_text.frag.hlsl">
       <Filter>Shaders</Filter>
     </CustomBuild>
@@ -211,6 +259,12 @@
       <Filter>Shaders</Filter>
     </CustomBuild>
     <CustomBuild Include="..\Shaders\particle_update.comp.hlsl">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\shadow_depth.frag.hlsl">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\shadow_depth.vert.hlsl">
       <Filter>Shaders</Filter>
     </CustomBuild>
     <CustomBuild Include="..\Shaders\sdf_outline.frag.hlsl">

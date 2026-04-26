@@ -71,19 +71,31 @@ struct Texture;
  * # Render targets
  *
  * BindRenderTarget / UnbindRenderTarget switches the active color target
- * between the swapchain (default) and a user-provided Texture. The
- * GraphicsDevice stores a pointer to the Texture object -- the caller MUST
- * keep the Texture alive until UnbindRenderTarget is called or the
- * GraphicsDevice is destroyed. A destroyed Texture leaves a dangling
- * pointer that will be dereferenced on the next render pass.
+ * between the swapchain (default) and a user-provided Texture.
+ * BindDepthRenderTarget / UnbindDepthRenderTarget separately controls a
+ * user-provided depth attachment. The GraphicsDevice stores pointers to
+ * the bound textures -- callers MUST keep the Texture objects alive until
+ * unbound (or the device is destroyed). A destroyed Texture leaves a
+ * dangling pointer that will be dereferenced on the next render pass.
  *
  * Binding a target with `setViewport == true` (the default) replaces the
  * viewport with one matching the texture's full size; the previous
  * viewport is not saved.
  *
- * Depth attachment is currently swapchain-only -- when a user render
- * target is active, depth is not attached even if SetDepthEnabled(true)
- * was called.
+ * The four valid combinations:
+ *
+ *   1. Neither bound -- swapchain color, plus swapchain depth if
+ *      `SetDepthEnabled(true)` was called. Default frame target.
+ *   2. Color bound only -- user color target, no depth. For sampler-only
+ *      offscreen passes (post-process source, etc).
+ *   3. Color + depth bound -- user color + user depth. For 3D passes that
+ *      will be sampled later (forward-rendered scene buffers).
+ *   4. Depth only bound -- depth-only pass with no color target. For
+ *      shadow maps and other depth-pre-pass work.
+ *
+ * Color + depth-target binding is independent of `SetDepthEnabled`; the
+ * swapchain-depth flag is consulted only when neither user target is
+ * bound.
  *
  * # Depth buffer
  *
@@ -211,6 +223,47 @@ struct GraphicsDevice {
     void BindRenderTarget(const Texture &texture, bool setViewport = true);
 
     /**
+     * Binds a color target and a depth target together as a single
+     * convenience.
+     *
+     * Equivalent to `BindRenderTarget(color, setViewport)` followed by
+     * `BindDepthRenderTarget(depth, 0)`. The viewport (if updated) is
+     * sized to the color texture.
+     *
+     * \param color color render target. Must remain alive until unbound.
+     * \param depth depth render target. Must remain alive until unbound.
+     *              Must be a `DepthTarget` or `CubeDepthTarget` Texture.
+     * \param setViewport if true (default), replaces the viewport with one
+     *                    matching the color texture's full size.
+     */
+    void BindRenderTarget(const Texture &color, const Texture &depth, bool setViewport = true);
+
+    /**
+     * Binds a depth target for the next render pass without binding a
+     * color target. Use to drive depth-only passes (shadow maps).
+     *
+     * Auto-ends any active render pass. Sets the viewport to the depth
+     * texture's full size and marks the device needing-clear.
+     *
+     * For a cube-map depth target, `layer` selects which of the six faces
+     * the next render pass writes to. The same texture can be re-bound
+     * with a different layer between passes to render all six faces.
+     *
+     * \param depth depth render target. Must remain alive until unbound.
+     *              Must be a `DepthTarget` or `CubeDepthTarget` Texture.
+     * \param layer layer index (0 for 2D depth, 0..5 for cube depth).
+     */
+    void BindDepthRenderTarget(const Texture &depth, uint32_t layer = 0);
+
+    /**
+     * Releases the bound depth render target.
+     *
+     * Auto-ends any active render pass. Does not affect the color target
+     * binding; call `UnbindRenderTarget` separately to release that.
+     */
+    void UnbindDepthRenderTarget();
+
+    /**
      * Switches the active color target back to the swapchain.
      *
      * Auto-ends any active render pass and marks the device as
@@ -225,6 +278,11 @@ struct GraphicsDevice {
      * Returns true while a Texture render target is bound.
      */
     bool IsUsingRenderTarget() const;
+
+    /**
+     * Returns true while a depth render target is bound.
+     */
+    bool IsUsingDepthTarget() const;
 
     /**
      * Acquires a fresh command buffer and the swapchain texture for this
@@ -371,6 +429,15 @@ struct GraphicsDevice {
         return depthEnabled;
     }
 
+    /**
+     * Returns the depth-stencil texture format the device prefers,
+     * `D24_UNORM` if supported and `D32_FLOAT` otherwise.
+     *
+     * Use this when constructing pipelines or user-owned depth textures
+     * so all depth allocations share one format.
+     */
+    SDL_GPUTextureFormat GetDepthFormat() const;
+
   private:
     void EnsureDepthTexture();
     SDL_GPUDevice *device;
@@ -395,6 +462,8 @@ struct GraphicsDevice {
 
     // Render target state
     const Texture *currentRenderTarget;
+    const Texture *currentDepthTarget = nullptr;
+    uint32_t currentDepthLayer = 0;
 
     // Depth buffer
     SDL_GPUTexture *depthTexture = nullptr;

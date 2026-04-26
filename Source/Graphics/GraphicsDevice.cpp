@@ -97,6 +97,19 @@ void GraphicsDevice::SetDepthEnabled(bool enabled) {
     depthEnabled = enabled;
 }
 
+SDL_GPUTextureFormat GraphicsDevice::GetDepthFormat() const {
+    // D16_UNORM is universally supported and avoids D3D12 quirks where
+    // D24_UNORM is reported supported for textures but rejected during
+    // pipeline state creation. Use D32_FLOAT only if D16 is unavailable
+    // (extremely unlikely).
+    SDL_GPUTextureFormat format = SDL_GPU_TEXTUREFORMAT_D16_UNORM;
+    if (!SDL_GPUTextureSupportsFormat(device, format, SDL_GPU_TEXTURETYPE_2D,
+            SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET)) {
+        format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
+    }
+    return format;
+}
+
 void GraphicsDevice::EnsureDepthTexture() {
     if (depthTexture && depthTextureWidth == screenWidth && depthTextureHeight == screenHeight) {
         return;
@@ -107,13 +120,7 @@ void GraphicsDevice::EnsureDepthTexture() {
         depthTexture = nullptr;
     }
 
-    SDL_GPUTextureFormat depthFormat = SDL_GPU_TEXTUREFORMAT_D24_UNORM;
-    if (!SDL_GPUTextureSupportsFormat(device,
-            depthFormat,
-            SDL_GPU_TEXTURETYPE_2D,
-            SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET)) {
-        depthFormat = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
-    }
+    SDL_GPUTextureFormat depthFormat = GetDepthFormat();
 
     SDL_GPUTextureCreateInfo ci = {};
     ci.type = SDL_GPU_TEXTURETYPE_2D;
@@ -200,6 +207,56 @@ void GraphicsDevice::BindRenderTarget(const Texture &texture, bool setViewport) 
     }
 }
 
+void GraphicsDevice::BindRenderTarget(
+    const Texture &color, const Texture &depth, bool setViewport) {
+    BindRenderTarget(color, setViewport);
+    BindDepthRenderTarget(depth, 0);
+}
+
+void GraphicsDevice::BindDepthRenderTarget(const Texture &depth, uint32_t layer) {
+    SDL_assert(IsDepthTextureType(depth.GetTextureType()));
+    if (IsCubeTextureType(depth.GetTextureType())) {
+        SDL_assert(layer < 6);
+    } else {
+        SDL_assert(layer == 0);
+    }
+
+    if (currentRenderPass) {
+        EndRenderPass();
+    }
+
+    currentDepthTarget = &depth;
+    currentDepthLayer = layer;
+    needsClear = true;
+
+    if (!currentRenderTarget) {
+        viewport = {0, 0, static_cast<int>(depth.GetWidth()), static_cast<int>(depth.GetHeight())};
+    }
+}
+
+void GraphicsDevice::UnbindDepthRenderTarget() {
+    if (currentRenderPass) {
+        EndRenderPass();
+    }
+
+    currentDepthTarget = nullptr;
+    currentDepthLayer = 0;
+    needsClear = true;
+
+    // Restore viewport to whichever target is still bound: color
+    // texture if one is, otherwise the full swapchain. Without this,
+    // a depth-only shadow pass leaves the viewport at the shadow map
+    // size and the next render pass renders into a stretched region.
+    if (currentRenderTarget) {
+        viewport = {0,
+            0,
+            static_cast<int>(currentRenderTarget->GetWidth()),
+            static_cast<int>(currentRenderTarget->GetHeight())};
+    } else {
+        viewport = {0, 0, screenWidth, screenHeight};
+    }
+}
+
 void GraphicsDevice::UnbindRenderTarget(bool resetViewport) {
     if (currentRenderPass) {
         EndRenderPass();
@@ -215,6 +272,10 @@ void GraphicsDevice::UnbindRenderTarget(bool resetViewport) {
 
 bool GraphicsDevice::IsUsingRenderTarget() const {
     return currentRenderTarget != nullptr;
+}
+
+bool GraphicsDevice::IsUsingDepthTarget() const {
+    return currentDepthTarget != nullptr;
 }
 
 void GraphicsDevice::BeginFrame() {
@@ -282,34 +343,51 @@ void GraphicsDevice::BeginRenderPass() {
         return;
     }
 
-    SDL_GPUTexture *colorTarget = GetCurrentColorTarget();
-    if (!colorTarget) {
-        return;
-    }
+    bool clearing = needsClear;
+    bool depthOnly = (currentRenderTarget == nullptr) && (currentDepthTarget != nullptr);
 
     SDL_GPUColorTargetInfo colorTargetInfo;
-    SDL_zero(colorTargetInfo);
-    colorTargetInfo.texture = colorTarget;
+    SDL_GPUColorTargetInfo *colorInfo = nullptr;
+    uint32_t colorCount = 0;
 
-    bool clearing = needsClear;
+    if (!depthOnly) {
+        SDL_GPUTexture *colorTarget = GetCurrentColorTarget();
+        if (!colorTarget) {
+            return;
+        }
 
-    if (clearing) {
-        colorTargetInfo.load_op = SDL_GPU_LOADOP_CLEAR;
-        colorTargetInfo.clear_color.r = clearColor.r;
-        colorTargetInfo.clear_color.g = clearColor.g;
-        colorTargetInfo.clear_color.b = clearColor.b;
-        colorTargetInfo.clear_color.a = clearColor.a;
-        needsClear = false;
-    } else {
-        colorTargetInfo.load_op = SDL_GPU_LOADOP_LOAD;
+        SDL_zero(colorTargetInfo);
+        colorTargetInfo.texture = colorTarget;
+
+        if (clearing) {
+            colorTargetInfo.load_op = SDL_GPU_LOADOP_CLEAR;
+            colorTargetInfo.clear_color.r = clearColor.r;
+            colorTargetInfo.clear_color.g = clearColor.g;
+            colorTargetInfo.clear_color.b = clearColor.b;
+            colorTargetInfo.clear_color.a = clearColor.a;
+        } else {
+            colorTargetInfo.load_op = SDL_GPU_LOADOP_LOAD;
+        }
+
+        colorTargetInfo.store_op = SDL_GPU_STOREOP_STORE;
+        colorTargetInfo.cycle = false;
+        colorInfo = &colorTargetInfo;
+        colorCount = 1;
     }
-
-    colorTargetInfo.store_op = SDL_GPU_STOREOP_STORE;
-    colorTargetInfo.cycle = false;
 
     SDL_GPUDepthStencilTargetInfo *depthInfo = nullptr;
     SDL_GPUDepthStencilTargetInfo depthTargetInfo;
-    if (depthEnabled && !currentRenderTarget) {
+
+    if (currentDepthTarget) {
+        SDL_zero(depthTargetInfo);
+        depthTargetInfo.texture = currentDepthTarget->GetGPUTexture();
+        depthTargetInfo.layer = static_cast<Uint8>(currentDepthLayer);
+        depthTargetInfo.load_op = clearing ? SDL_GPU_LOADOP_CLEAR : SDL_GPU_LOADOP_LOAD;
+        depthTargetInfo.store_op = SDL_GPU_STOREOP_STORE;
+        depthTargetInfo.clear_depth = 1.0f;
+        depthTargetInfo.cycle = false;
+        depthInfo = &depthTargetInfo;
+    } else if (depthEnabled && !currentRenderTarget) {
         EnsureDepthTexture();
         if (depthTexture) {
             SDL_zero(depthTargetInfo);
@@ -322,7 +400,11 @@ void GraphicsDevice::BeginRenderPass() {
         }
     }
 
-    currentRenderPass = SDL_BeginGPURenderPass(commandBuffer, &colorTargetInfo, 1, depthInfo);
+    if (clearing) {
+        needsClear = false;
+    }
+
+    currentRenderPass = SDL_BeginGPURenderPass(commandBuffer, colorInfo, colorCount, depthInfo);
     if (!currentRenderPass) {
         spdlog::error("Failed to begin GPU render pass: {}", SDL_GetError());
         return;

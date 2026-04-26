@@ -17,6 +17,18 @@
     <ClCompile Include="..\Tests\Graphics\TextureAtlasTests.cpp">
       <Filter>Graphics</Filter>
     </ClCompile>
+    <ClCompile Include="..\Tests\Graphics\CameraTests.cpp">
+      <Filter>Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Tests\Graphics\IndexBufferTests.cpp">
+      <Filter>Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Tests\Graphics\MeshTests.cpp">
+      <Filter>Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Tests\Graphics\TextureTests.cpp">
+      <Filter>Graphics</Filter>
+    </ClCompile>
     <ClCompile Include="..\Tests\Graphics\ShapeRendererTests.cpp">
       <Filter>Graphics</Filter>
     </ClCompile>

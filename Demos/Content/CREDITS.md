@@ -25,6 +25,15 @@ From "Toon Characters Pack 1" by Kenney (www.kenney.nl)
 Licensed under Creative Commons Zero (CC0)
 https://creativecommons.org/publicdomain/zero/1.0/
 
+## Models
+
+### Box.glb
+
+From the Khronos glTF Sample Assets, originally by Cesium.
+Copyright (c) 2017, Cesium.
+Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+
 ## Fonts
 
 ### MouseMemoirs-Regular.ttf

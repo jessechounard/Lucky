@@ -71,7 +71,7 @@ template <typename VertexType> struct VertexBuffer {
         bufferSize = vertexCount * sizeof(VertexType);
         CreateGPUBuffer();
         CreateTransferBuffer();
-        Upload(vertices, vertexCount);
+        UploadStandalone(vertices, vertexCount);
         ReleaseTransferBuffer();
     }
 
@@ -173,6 +173,42 @@ template <typename VertexType> struct VertexBuffer {
 
         SDL_UploadToGPUBuffer(copyPass, &src, &dst, false);
         graphicsDevice->EndCopyPass();
+    }
+
+    // Used by the static constructor: acquires + submits its own
+    // SDL_GPUCommandBuffer instead of borrowing the device's frame
+    // command buffer, so a static VertexBuffer can be built outside an
+    // active frame (typically during demo / renderer construction).
+    void UploadStandalone(const VertexType *vertices, uint32_t vertexCount) {
+        uint32_t dataSize = vertexCount * sizeof(VertexType);
+        SDL_GPUDevice *device = graphicsDevice->GetDevice();
+
+        void *mapped = SDL_MapGPUTransferBuffer(device, transferBuffer, true);
+        memcpy(mapped, vertices, dataSize);
+        SDL_UnmapGPUTransferBuffer(device, transferBuffer);
+
+        SDL_GPUCommandBuffer *cmd = SDL_AcquireGPUCommandBuffer(device);
+        if (!cmd) {
+            return;
+        }
+        SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(cmd);
+        if (!copyPass) {
+            SDL_SubmitGPUCommandBuffer(cmd);
+            return;
+        }
+
+        SDL_GPUTransferBufferLocation src;
+        SDL_zero(src);
+        src.transfer_buffer = transferBuffer;
+
+        SDL_GPUBufferRegion dst;
+        SDL_zero(dst);
+        dst.buffer = gpuBuffer;
+        dst.size = dataSize;
+
+        SDL_UploadToGPUBuffer(copyPass, &src, &dst, false);
+        SDL_EndGPUCopyPass(copyPass);
+        SDL_SubmitGPUCommandBuffer(cmd);
     }
 
     GraphicsDevice *graphicsDevice;

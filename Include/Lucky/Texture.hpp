@@ -24,12 +24,47 @@ enum class TextureFilter {
 /**
  * How a texture will be used by the GPU.
  *
- * - `Default` — sampler-only. The texture can be bound as a shader input.
- * - `RenderTarget` — sampler *and* color target. The texture can be bound as
- *   the output of a render pass and later sampled as input. Use for effects
- *   like bloom, off-screen composition, or post-processing.
+ * - `Default` — 2D, sampler-only. The texture can be bound as a shader
+ *   input.
+ * - `RenderTarget` — 2D, sampler *and* color target. The texture can be
+ *   bound as the output of a render pass and later sampled as input. Use
+ *   for effects like bloom, off-screen composition, or post-processing.
+ * - `DepthTarget` — 2D depth-stencil target, also sampleable. Used for
+ *   shadow maps and any custom depth pass that the application later reads
+ *   back through a sampler. Created with no internal sampler -- pair with a
+ *   `Sampler` configured for the desired comparison or filter mode.
+ * - `CubeRenderTarget` — cube-map color target, sampleable. The six faces
+ *   share one allocation; bind a face by layer index when starting a render
+ *   pass. Useful for environment captures and dynamic reflections. Created
+ *   with no internal sampler -- pair with a `Sampler`.
+ * - `CubeDepthTarget` — cube-map depth-stencil target, sampleable. Used for
+ *   omnidirectional (point-light) shadow maps. Created with no internal
+ *   sampler -- pair with a `Sampler`.
  */
-enum class TextureType { Default, RenderTarget };
+enum class TextureType {
+    Default,
+    RenderTarget,
+    DepthTarget,
+    CubeRenderTarget,
+    CubeDepthTarget,
+};
+
+/**
+ * Returns true for `TextureType` values whose underlying SDL_GPU texture
+ * has six layers (one per cube face) instead of one.
+ */
+constexpr bool IsCubeTextureType(TextureType type) {
+    return type == TextureType::CubeRenderTarget || type == TextureType::CubeDepthTarget;
+}
+
+/**
+ * Returns true for `TextureType` values that allocate a depth-stencil
+ * target instead of a color target. Depth textures must be created with
+ * `TextureFormat::Depth`.
+ */
+constexpr bool IsDepthTextureType(TextureType type) {
+    return type == TextureType::DepthTarget || type == TextureType::CubeDepthTarget;
+}
 
 /**
  * Pixel format for a texture's GPU storage.
@@ -41,10 +76,15 @@ enum class TextureType { Default, RenderTarget };
  *   `[0, 1]` (bloom, tone mapping). File and in-memory image loading do not
  *   currently support this format; supply pre-formatted half-float data via
  *   the raw-data constructor instead.
+ * - `Depth` — driver-supported 24-bit unorm depth, falling back to 32-bit
+ *   float depth if the device does not advertise D24. Required for
+ *   `TextureType::DepthTarget` and `TextureType::CubeDepthTarget`. Cannot
+ *   be uploaded to from CPU pixel data.
  */
 enum class TextureFormat {
     Normal,
     HDR,
+    Depth,
 };
 
 /**
@@ -59,6 +99,8 @@ constexpr uint32_t BytesPerPixel(TextureFormat format) {
         return 4;
     case TextureFormat::HDR:
         return 8;
+    case TextureFormat::Depth:
+        return 4;
     }
     return 4;
 }
@@ -181,6 +223,40 @@ struct Texture {
         TextureFilter textureFilter = TextureFilter::Linear,
         TextureFormat textureFormat = TextureFormat::Normal);
 
+    /**
+     * Allocates a render target, depth target, or cube target with no
+     * initial pixel data.
+     *
+     * The right entry point for any non-`Default` texture type. The
+     * underlying GPU texture is created with the usage flags appropriate
+     * for `textureType` (color target, depth-stencil target, sampleable);
+     * cube types allocate six array layers in a single allocation.
+     *
+     * Internal sampler creation is skipped for depth and cube types --
+     * `GetSampler()` returns `nullptr` for those, and the caller is
+     * expected to pair the texture with a separate `Lucky::Sampler`.
+     *
+     * \param graphicsDevice the graphics device that owns the GPU resource.
+     *                       Must outlive this Texture.
+     * \param textureType the target kind. `Default` is rejected by an
+     *                    assert; use a pixel-data constructor instead.
+     * \param width texture width in pixels (or per-face for cube types).
+     *              Must be positive.
+     * \param height texture height in pixels (or per-face for cube types).
+     *               Must be positive. Cube types must satisfy
+     *               `width == height`.
+     * \param textureFormat the storage format. Must be `Depth` for depth
+     *                      types and a color format (`Normal` or `HDR`)
+     *                      for color types.
+     * \param textureFilter the filter mode for the internal sampler. Only
+     *                      meaningful for `RenderTarget`; ignored for
+     *                      depth and cube types.
+     * \throws std::runtime_error on GPU allocation failure.
+     */
+    Texture(GraphicsDevice &graphicsDevice, TextureType textureType, uint32_t width,
+        uint32_t height, TextureFormat textureFormat,
+        TextureFilter textureFilter = TextureFilter::Linear);
+
     Texture(const Texture &) = delete;
     ~Texture();
 
@@ -270,12 +346,14 @@ struct Texture {
     }
 
     /**
-     * Returns the underlying `SDL_GPUSampler` handle.
+     * Returns the underlying `SDL_GPUSampler` handle, or `nullptr` for
+     * depth and cube textures (which do not allocate an internal sampler).
      *
      * Exposed so callers can bind the sampler alongside the texture in a
-     * shader resource set. The handle is owned by this Texture and is
-     * replaced whenever `SetTextureFilter()` is called; do not hold it past
-     * that call.
+     * shader resource set. For depth and cube targets, pair the texture
+     * with a separate `Lucky::Sampler` instead. The handle is owned by
+     * this Texture and is replaced whenever `SetTextureFilter()` is called;
+     * do not hold it past that call.
      */
     SDL_GPUSampler *GetSampler() const {
         return sampler;

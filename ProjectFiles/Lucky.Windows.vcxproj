@@ -69,7 +69,7 @@
     <OutDir>$(ProjectDir)..\Build\Output\$(Configuration)\</OutDir>
     <IntDir>$(ProjectDir)..\Build\Intermediate\$(Configuration)\</IntDir>
     <TargetName>Lucky</TargetName>
-    <IncludePath>$(ProjectDir)..\Include;$(ProjectDir)..\Dependencies;$(ProjectDir)..\Dependencies\spdlog\include;$(ProjectDir)..\Dependencies\stb;$(ProjectDir)..\Dependencies\dr_libs;$(ProjectDir)..\Dependencies\SDL\include;$(ProjectDir)..\Dependencies\harfbuzz\src;$(ProjectDir)..\Dependencies\glm;$(ProjectDir)..\Dependencies\json\include;$(ProjectDir)..\Dependencies\tracy\public;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)..\Include;$(ProjectDir)..\Dependencies;$(ProjectDir)..\Dependencies\spdlog\include;$(ProjectDir)..\Dependencies\stb;$(ProjectDir)..\Dependencies\dr_libs;$(ProjectDir)..\Dependencies\SDL\include;$(ProjectDir)..\Dependencies\harfbuzz\src;$(ProjectDir)..\Dependencies\glm;$(ProjectDir)..\Dependencies\json\include;$(ProjectDir)..\Dependencies\tracy\public;$(ProjectDir)..\Dependencies\cgltf;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug ASan|x64'">
     <ClCompile>
@@ -129,8 +129,14 @@
     <ClCompile Include="..\Source\Audio\Sound.cpp" />
     <ClCompile Include="..\Source\Audio\Stream.cpp" />
     <ClCompile Include="..\Source\Graphics\BatchRenderer.cpp" />
+    <ClCompile Include="..\Source\Graphics\Camera.cpp" />
+    <ClCompile Include="..\Source\Graphics\ForwardRenderer.cpp" />
     <ClCompile Include="..\Source\Graphics\GraphicsDevice.cpp" />
+    <ClCompile Include="..\Source\Graphics\Mesh.cpp" />
+    <ClCompile Include="..\Source\Graphics\Model.cpp" />
+    <ClCompile Include="..\Source\Graphics\ModelInstance.cpp" />
     <ClCompile Include="..\Source\Graphics\ParticleEmitter.cpp" />
+    <ClCompile Include="..\Source\Graphics\Sampler.cpp" />
     <ClCompile Include="..\Source\Graphics\SdfFont.cpp" />
     <ClCompile Include="..\Source\Graphics\Shader.cpp" />
     <ClCompile Include="..\Source\Graphics\ShapeRenderer.cpp" />
@@ -175,19 +181,27 @@
     <ClInclude Include="..\Include\Lucky\AudioPlayer.hpp" />
     <ClInclude Include="..\Include\Lucky\BatchRenderer.hpp" />
     <ClInclude Include="..\Include\Lucky\BlendState.hpp" />
+    <ClInclude Include="..\Include\Lucky\Camera.hpp" />
     <ClInclude Include="..\Include\Lucky\Collections.hpp" />
     <ClInclude Include="..\Include\Lucky\Collision.hpp" />
     <ClInclude Include="..\Include\Lucky\Color.hpp" />
+    <ClInclude Include="..\Include\Lucky\ForwardRenderer.hpp" />
     <ClInclude Include="..\Include\Lucky\Gamepad.hpp" />
     <ClInclude Include="..\Include\Lucky\GraphicsDevice.hpp" />
+    <ClInclude Include="..\Include\Lucky\IndexBuffer.hpp" />
     <ClInclude Include="..\Include\Lucky\Input.hpp" />
     <ClInclude Include="..\Include\Lucky\Keyboard.hpp" />
     <ClInclude Include="..\Include\Lucky\MathConstants.hpp" />
     <ClInclude Include="..\Include\Lucky\MathHelpers.hpp" />
+    <ClInclude Include="..\Include\Lucky\Mesh.hpp" />
+    <ClInclude Include="..\Include\Lucky\Model.hpp" />
+    <ClInclude Include="..\Include\Lucky\ModelInstance.hpp" />
     <ClInclude Include="..\Include\Lucky\Mouse.hpp" />
     <ClInclude Include="..\Include\Lucky\ParticleEmitter.hpp" />
     <ClInclude Include="..\Include\Lucky\Random.hpp" />
     <ClInclude Include="..\Include\Lucky\Rectangle.hpp" />
+    <ClInclude Include="..\Include\Lucky\Sampler.hpp" />
+    <ClInclude Include="..\Include\Lucky\Scene3D.hpp" />
     <ClInclude Include="..\Include\Lucky\SdfFont.hpp" />
     <ClInclude Include="..\Include\Lucky\Shader.hpp" />
     <ClInclude Include="..\Include\Lucky\ShapeRenderer.hpp" />
@@ -205,6 +219,24 @@
   <!-- Shader Files -->
   <ItemGroup>
     <None Include="..\Shaders\sdf_primitives.hlsl" />
+    <CustomBuild Include="..\Shaders\forward.frag.hlsl">
+      <FileType>Document</FileType>
+      <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
+shadercross "%(FullPath)" -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"
+shadercross "%(FullPath)" -d DXIL -o "$(OutDir)Content\Shaders\%(Filename).dxil"
+shadercross "%(FullPath)" -d MSL -o "$(OutDir)Content\Shaders\%(Filename).msl"
+shadercross "%(FullPath)" -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"</Command>
+      <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\forward.vert.hlsl">
+      <FileType>Document</FileType>
+      <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
+shadercross "%(FullPath)" -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"
+shadercross "%(FullPath)" -d DXIL -o "$(OutDir)Content\Shaders\%(Filename).dxil"
+shadercross "%(FullPath)" -d MSL -o "$(OutDir)Content\Shaders\%(Filename).msl"
+shadercross "%(FullPath)" -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"</Command>
+      <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
+    </CustomBuild>
     <CustomBuild Include="..\Shaders\msdf_text.frag.hlsl">
       <FileType>Document</FileType>
       <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
@@ -233,6 +265,24 @@ shadercross "%(FullPath)" -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"
       <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
     </CustomBuild>
     <CustomBuild Include="..\Shaders\particle_update.comp.hlsl">
+      <FileType>Document</FileType>
+      <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
+shadercross "%(FullPath)" -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"
+shadercross "%(FullPath)" -d DXIL -o "$(OutDir)Content\Shaders\%(Filename).dxil"
+shadercross "%(FullPath)" -d MSL -o "$(OutDir)Content\Shaders\%(Filename).msl"
+shadercross "%(FullPath)" -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"</Command>
+      <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\shadow_depth.frag.hlsl">
+      <FileType>Document</FileType>
+      <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
+shadercross "%(FullPath)" -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"
+shadercross "%(FullPath)" -d DXIL -o "$(OutDir)Content\Shaders\%(Filename).dxil"
+shadercross "%(FullPath)" -d MSL -o "$(OutDir)Content\Shaders\%(Filename).msl"
+shadercross "%(FullPath)" -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"</Command>
+      <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\shadow_depth.vert.hlsl">
       <FileType>Document</FileType>
       <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
 shadercross "%(FullPath)" -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"
