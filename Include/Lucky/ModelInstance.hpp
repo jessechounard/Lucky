@@ -69,9 +69,12 @@ struct ModelInstance {
 
     /**
      * Appends one `SceneObject` per (node, mesh) pair to `scene.objects`,
-     * using the current world transforms.
+     * using the current world transforms. Material pointers are resolved
+     * from the bound Model, so the renderer sees the same materials it
+     * would for a static `Model::AppendToScene`. Non-const because the
+     * Material pointers handed out are non-const.
      */
-    void AppendToScene(Scene3D &scene, const glm::vec3 &colorTint = glm::vec3(1.0f)) const;
+    void AppendToScene(Scene3D &scene, const glm::vec3 &colorTint = glm::vec3(1.0f));
 
     /** Returns the bound Model. */
     Model &GetModel() {

@@ -170,6 +170,9 @@
     <ClInclude Include="..\Include\Lucky\MathHelpers.hpp">
       <Filter>Include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Include\Lucky\Material.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
     <ClInclude Include="..\Include\Lucky\Mesh.hpp">
       <Filter>Include</Filter>
     </ClInclude>

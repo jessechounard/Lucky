@@ -193,6 +193,7 @@
     <ClInclude Include="..\Include\Lucky\Keyboard.hpp" />
     <ClInclude Include="..\Include\Lucky\MathConstants.hpp" />
     <ClInclude Include="..\Include\Lucky\MathHelpers.hpp" />
+    <ClInclude Include="..\Include\Lucky\Material.hpp" />
     <ClInclude Include="..\Include\Lucky\Mesh.hpp" />
     <ClInclude Include="..\Include\Lucky\Model.hpp" />
     <ClInclude Include="..\Include\Lucky\ModelInstance.hpp" />

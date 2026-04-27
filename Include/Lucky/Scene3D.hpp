@@ -6,6 +6,7 @@
 
 namespace Lucky {
 
+struct Material;
 struct Mesh;
 
 /**
@@ -67,16 +68,22 @@ struct Light {
 };
 
 /**
- * One drawable: a mesh placed in world space with an optional color tint.
+ * One drawable: a mesh placed in world space with an optional material
+ * and a color tint that multiplies the material's base color.
  *
- * `mesh` is a non-owned pointer; the caller keeps the `Mesh` alive for
- * the duration of any render call that reads this `SceneObject`.
+ * `mesh` and `material` are non-owned pointers; the caller keeps both
+ * alive for the duration of any render call that reads this
+ * `SceneObject`. `material == nullptr` is a valid request for a
+ * default white-dielectric-rough material; the renderer substitutes a
+ * built-in fallback so callers don't have to track one.
  *
- * `color` is the base albedo until a real material system lands. The
- * forward renderer multiplies this by the lighting result before output.
+ * `color` is multiplied into the material's `baseColorFactor` before
+ * lighting. Useful for tinting the same loaded model in different
+ * colors without cloning materials.
  */
 struct SceneObject {
     Mesh *mesh = nullptr;
+    Material *material = nullptr;
     glm::mat4 transform = glm::mat4(1.0f);
     glm::vec3 color = {1.0f, 1.0f, 1.0f};
 };

@@ -1,17 +1,12 @@
 #include <SDL3/SDL.h>
-#include <filesystem>
 #include <memory>
 
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <Lucky/Camera.hpp>
-#include <Lucky/Color.hpp>
 #include <Lucky/ForwardRenderer.hpp>
 #include <Lucky/GraphicsDevice.hpp>
-#include <Lucky/MathConstants.hpp>
 #include <Lucky/Mesh.hpp>
-#include <Lucky/Model.hpp>
-#include <Lucky/ModelInstance.hpp>
 #include <Lucky/Scene3D.hpp>
 
 #include "../DemoBase.hpp"
@@ -19,22 +14,27 @@
 
 namespace {
 
-// 3D demo: a Box.glb loaded via the cgltf-backed Model on top of a
-// generated ground plane, lit by a directional sun (with shadows) and
-// a blue point fill light. Phase A/B/C of the forward renderer plus the
-// Model/ModelInstance loading path.
+// Minimal 3D demo: a spinning octahedron ("diamond") on a generated
+// ground plane, lit by a directional sun with shadow mapping. Pure
+// procedural geometry -- no glTF loading, no texture sampling. Use this
+// to validate that the basic 3D pipeline path is healthy without any
+// asset dependency.
 class Demo3D : public LuckyDemos::DemoBase {
   public:
     explicit Demo3D(SDL_Window *window) : graphicsDevice(window), forwardRenderer(graphicsDevice) {
         graphicsDevice.SetClearColor({0.08f, 0.10f, 0.13f, 1.0f});
         graphicsDevice.SetDepthEnabled(true);
 
-        const std::filesystem::path basePath = SDL_GetBasePath();
-        const std::string boxPath = (basePath / "Content/Models/Box.glb").generic_string();
-        boxModel = std::make_unique<Lucky::Model>(graphicsDevice, boxPath);
-        boxInstance = std::make_unique<Lucky::ModelInstance>(*boxModel);
-
+        diamondMesh =
+            std::make_unique<Lucky::Mesh>(graphicsDevice, Lucky::MakeDiamondMeshData(1.0f, 1.5f));
         planeMesh = std::make_unique<Lucky::Mesh>(graphicsDevice, Lucky::MakePlaneMeshData(8.0f));
+        // Thin vertical slab as a peter-panning probe: its bottom edge
+        // sits exactly on the ground plane (Y=-0.5), so the contact
+        // line should have zero gap between the slab and its shadow.
+        // If the shadow bias is too aggressive we'll see a sliver of
+        // light right at the base.
+        slabMesh = std::make_unique<Lucky::Mesh>(
+            graphicsDevice, Lucky::MakeBoxMeshData(0.08f, 1.5f, 1.5f));
 
         camera.position = {4.0f, 3.0f, 5.0f};
         camera.fovY = glm::radians(60.0f);
@@ -48,7 +48,10 @@ class Demo3D : public LuckyDemos::DemoBase {
 
         Lucky::Light sun;
         sun.type = Lucky::LightType::Directional;
-        sun.direction = glm::normalize(glm::vec3(-0.4f, -1.0f, -0.3f));
+        // Low-angled sun so the slabs cast long shadows across the
+        // ground -- makes the slab/shadow contact line easy to see for
+        // peter-panning and acne inspection.
+        sun.direction = glm::normalize(glm::vec3(-0.7f, -0.45f, -0.3f));
         sun.color = {1.0f, 0.95f, 0.85f};
         sun.intensity = 1.0f;
         sun.castsShadows = true;
@@ -81,18 +84,43 @@ class Demo3D : public LuckyDemos::DemoBase {
     }
 
     void Update(float deltaSeconds) override {
-        boxRotation += deltaSeconds * 0.6f;
-        const glm::mat4 t = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.6f, 0.0f));
-        const glm::mat4 r = glm::rotate(glm::mat4(1.0f), boxRotation, glm::vec3(0.3f, 1.0f, 0.0f));
-        boxInstance->SetRootTransform(t * r);
+        diamondRotation += deltaSeconds * 0.6f;
 
-        // Rebuild the per-frame draw list: ground plane + the box's
-        // ModelInstance flattened to one SceneObject per (node, mesh).
         scene.objects.clear();
-        scene.objects.push_back({planeMesh.get(),
-            glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.5f, 0.0f)),
-            glm::vec3(0.6f, 0.6f, 0.65f)});
-        boxInstance->AppendToScene(scene, glm::vec3(0.85f, 0.45f, 0.30f));
+
+        Lucky::SceneObject ground;
+        ground.mesh = planeMesh.get();
+        ground.transform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.5f, 0.0f));
+        ground.color = glm::vec3(0.6f, 0.6f, 0.65f);
+        scene.objects.push_back(ground);
+
+        Lucky::SceneObject diamond;
+        diamond.mesh = diamondMesh.get();
+        const glm::mat4 t = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.2f, 0.0f));
+        const glm::mat4 r =
+            glm::rotate(glm::mat4(1.0f), diamondRotation, glm::vec3(0.0f, 1.0f, 0.0f));
+        diamond.transform = t * r;
+        diamond.color = glm::vec3(0.85f, 0.45f, 0.30f);
+        scene.objects.push_back(diamond);
+
+        // Two slabs on either side of the diamond, with their bottom
+        // edges touching the ground (slab half-height = 0.75, ground at
+        // Y=-0.5, so slab center sits at Y=0.25). Watch for a light
+        // gap at the base of either slab.
+        Lucky::SceneObject slabLeft;
+        slabLeft.mesh = slabMesh.get();
+        slabLeft.transform = glm::translate(glm::mat4(1.0f), glm::vec3(-2.5f, 0.25f, 0.0f));
+        slabLeft.color = glm::vec3(0.7f, 0.7f, 0.75f);
+        scene.objects.push_back(slabLeft);
+
+        Lucky::SceneObject slabRight;
+        slabRight.mesh = slabMesh.get();
+        slabRight.transform =
+            glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(2.5f, 0.25f, 0.0f)),
+                glm::radians(45.0f),
+                glm::vec3(0.0f, 1.0f, 0.0f));
+        slabRight.color = glm::vec3(0.7f, 0.7f, 0.75f);
+        scene.objects.push_back(slabRight);
     }
 
     void Draw() override {
@@ -108,16 +136,16 @@ class Demo3D : public LuckyDemos::DemoBase {
     Lucky::GraphicsDevice graphicsDevice;
     Lucky::ForwardRenderer forwardRenderer;
 
-    std::unique_ptr<Lucky::Model> boxModel;
-    std::unique_ptr<Lucky::ModelInstance> boxInstance;
+    std::unique_ptr<Lucky::Mesh> diamondMesh;
     std::unique_ptr<Lucky::Mesh> planeMesh;
+    std::unique_ptr<Lucky::Mesh> slabMesh;
 
     Lucky::Camera camera;
     Lucky::Scene3D scene;
-    float boxRotation = 0.0f;
+    float diamondRotation = 0.0f;
 };
 
 } // namespace
 
-LUCKY_DEMO("3D",
-    "Khronos Box.glb on a ground plane, forward-shaded with directional + point lights", Demo3D);
+LUCKY_DEMO(
+    "3D", "Spinning diamond on a ground plane with a directional sun and shadow mapping", Demo3D);

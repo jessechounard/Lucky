@@ -83,13 +83,18 @@ void ModelInstance::RecomputeWorldTransformsIfDirty() const {
     dirty = false;
 }
 
-void ModelInstance::AppendToScene(Scene3D &scene, const glm::vec3 &colorTint) const {
+void ModelInstance::AppendToScene(Scene3D &scene, const glm::vec3 &colorTint) {
     RecomputeWorldTransformsIfDirty();
     const int count = model->GetNodeCount();
     for (int i = 0; i < count; i++) {
         const NodeTemplate &node = model->GetNode(i);
         for (int meshIdx : node.meshIndices) {
-            scene.objects.push_back({&model->GetMesh(meshIdx), worldTransforms[i], colorTint});
+            SceneObject obj;
+            obj.mesh = &model->GetMesh(meshIdx);
+            obj.material = model->GetMaterialForMesh(meshIdx);
+            obj.transform = worldTransforms[i];
+            obj.color = colorTint;
+            scene.objects.push_back(obj);
         }
     }
 }

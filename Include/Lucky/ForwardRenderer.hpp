@@ -9,6 +9,7 @@ namespace Lucky {
 
 struct Camera;
 struct GraphicsDevice;
+struct Material;
 struct Sampler;
 struct Scene3D;
 struct Shader;
@@ -75,7 +76,7 @@ struct ForwardRenderer {
     static constexpr int MaxShadowMaps = 4;
 
     /** Edge length of each shadow map in texels. */
-    static constexpr uint32_t ShadowMapSize = 1024;
+    static constexpr uint32_t ShadowMapSize = 2048;
 
   private:
     SDL_GPUGraphicsPipeline *GetOrCreateForwardPipeline(
@@ -111,6 +112,14 @@ struct ForwardRenderer {
 
     std::unique_ptr<Texture> shadowMaps[MaxShadowMaps];
     std::unique_ptr<Sampler> shadowSampler;
+
+    // 1x1 white texture used as the base-color fallback when an object's
+    // material has no base-color texture (or no material at all). Same
+    // for the metallic-roughness slot so the shader always has a valid
+    // sample even when the texture-presence flag tells it to ignore the
+    // sample's value.
+    std::unique_ptr<Texture> whiteTexture;
+    std::unique_ptr<Sampler> defaultMaterialSampler;
 };
 
 } // namespace Lucky

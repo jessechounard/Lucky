@@ -12,6 +12,7 @@
 #include <Lucky/Camera.hpp>
 #include <Lucky/ForwardRenderer.hpp>
 #include <Lucky/GraphicsDevice.hpp>
+#include <Lucky/Material.hpp>
 #include <Lucky/Mesh.hpp>
 #include <Lucky/Sampler.hpp>
 #include <Lucky/Scene3D.hpp>
@@ -30,6 +31,19 @@ struct ObjectUBO {
     glm::mat4 model;
     glm::vec4 colorTint;
 };
+
+// Per-draw fragment UBO at slot 1 (b1, space3). Layout mirrors the HLSL
+// cbuffer in forward.frag.hlsl exactly; do not reorder.
+struct MaterialUBO {
+    glm::vec4 baseColorFactor;
+    glm::vec3 emissiveFactor;
+    float metallicFactor;
+    float roughnessFactor;
+    int hasBaseColorTexture;
+    int hasMetallicRoughnessTexture;
+    float pad;
+};
+static_assert(sizeof(MaterialUBO) == 48, "MaterialUBO must match HLSL cbuffer layout");
 
 // Per-light entry in the fragment LightingUBO. Layout mirrors the HLSL
 // Light struct in forward.frag.hlsl exactly; do not reorder fields.
@@ -50,10 +64,12 @@ static_assert(sizeof(LightUBOEntry) == 64, "Light entry must match HLSL stride")
 struct LightingUBO {
     glm::vec3 ambientColor;
     int lightCount;
+    glm::vec3 cameraPosition;
+    float pad;
     LightUBOEntry lights[MaxLights];
     glm::mat4 shadowVP[ForwardRenderer::MaxShadowMaps];
 };
-static_assert(sizeof(LightingUBO) == 16 + MaxLights * 64 + ForwardRenderer::MaxShadowMaps * 64,
+static_assert(sizeof(LightingUBO) == 32 + MaxLights * 64 + ForwardRenderer::MaxShadowMaps * 64,
     "LightingUBO must match HLSL cbuffer layout");
 
 int LightTypeToShader(LightType type) {
@@ -86,10 +102,12 @@ glm::mat4 BuildShadowViewProj(const Light &light) {
             up = glm::vec3(0.0f, 0.0f, 1.0f);
         }
         const glm::mat4 view = glm::lookAt(eye, target, up);
-        // Tight frustum to maximize shadow texel density. Sized for the
-        // demo's ground plane; a real scene needs this fitted to the
-        // camera frustum each frame (cascaded shadow maps).
-        const float halfExtent = 6.0f;
+        // Fixed-size frustum sized to cover the largest demo scene
+        // (MetalRoughSpheres ~14 units across after rotation). A real
+        // scene wants this fitted to the camera frustum each frame
+        // (cascaded shadow maps); the trade-off here is shadow texel
+        // density (1024 texels / 24 world units ≈ 23mm/texel).
+        const float halfExtent = 12.0f;
         const glm::mat4 proj = glm::orthoRH_ZO(
             -halfExtent, halfExtent, -halfExtent, halfExtent, 0.1f, distance * 2.0f);
         return proj * view;
@@ -110,8 +128,7 @@ glm::mat4 BuildShadowViewProj(const Light &light) {
     return proj * view;
 }
 
-void DrawObjectsForPass(SDL_GPURenderPass *pass, SDL_GPUCommandBuffer *cmd, const Scene3D &scene,
-    const glm::mat4 *shadowOnlyOverrideTint) {
+void DrawSceneGeometry(SDL_GPURenderPass *pass, SDL_GPUCommandBuffer *cmd, const Scene3D &scene) {
     for (const SceneObject &object : scene.objects) {
         if (!object.mesh) {
             continue;
@@ -119,9 +136,6 @@ void DrawObjectsForPass(SDL_GPURenderPass *pass, SDL_GPUCommandBuffer *cmd, cons
 
         ObjectUBO ubo;
         ubo.model = object.transform;
-        // Color tint goes unused by the shadow vertex shader; pass white
-        // unconditionally so we don't carry per-pass branches up here.
-        (void)shadowOnlyOverrideTint;
         ubo.colorTint = glm::vec4(object.color, 1.0f);
         SDL_PushGPUVertexUniformData(cmd, 1, &ubo, sizeof(ubo));
 
@@ -165,13 +179,29 @@ ForwardRenderer::ForwardRenderer(GraphicsDevice &graphicsDevice) : graphicsDevic
             TextureFormat::Depth);
     }
 
-    SamplerDescription sampDesc;
-    sampDesc.filter = SamplerFilter::Point;
-    sampDesc.mipmapFilter = SamplerFilter::Point;
-    sampDesc.addressU = SamplerAddressMode::ClampToEdge;
-    sampDesc.addressV = SamplerAddressMode::ClampToEdge;
-    sampDesc.addressW = SamplerAddressMode::ClampToEdge;
-    shadowSampler = std::make_unique<Sampler>(graphicsDevice, sampDesc);
+    SamplerDescription shadowSampDesc;
+    shadowSampDesc.filter = SamplerFilter::Point;
+    shadowSampDesc.mipmapFilter = SamplerFilter::Point;
+    shadowSampDesc.addressU = SamplerAddressMode::ClampToEdge;
+    shadowSampDesc.addressV = SamplerAddressMode::ClampToEdge;
+    shadowSampDesc.addressW = SamplerAddressMode::ClampToEdge;
+    shadowSampler = std::make_unique<Sampler>(graphicsDevice, shadowSampDesc);
+
+    // 1x1 white texture: bound whenever a material doesn't supply its
+    // own base-color or metallic-roughness texture. The
+    // texture-presence flags in the MaterialUBO tell the shader to
+    // ignore the sampled value in those cases, so the actual content
+    // here only matters as a sentinel.
+    uint8_t whitePixel[4] = {255, 255, 255, 255};
+    whiteTexture = std::make_unique<Texture>(graphicsDevice,
+        TextureType::Default,
+        1u,
+        1u,
+        whitePixel,
+        static_cast<uint32_t>(sizeof(whitePixel)));
+
+    SamplerDescription matSampDesc; // linear/repeat default for materials.
+    defaultMaterialSampler = std::make_unique<Sampler>(graphicsDevice, matSampDesc);
 }
 
 ForwardRenderer::~ForwardRenderer() {
@@ -209,6 +239,8 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
     LightingUBO lightingUbo{};
     lightingUbo.ambientColor = scene.ambientColor;
     lightingUbo.lightCount = static_cast<int>(std::min<size_t>(scene.lights.size(), MaxLights));
+    lightingUbo.cameraPosition = camera.position;
+    lightingUbo.pad = 0.0f;
     int shadowCount = 0;
 
     for (int i = 0; i < lightingUbo.lightCount; i++) {
@@ -239,7 +271,7 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
             if (shadowPass) {
                 SDL_BindGPUGraphicsPipeline(shadowPass, shadowPipe);
                 SDL_PushGPUVertexUniformData(cmd, 0, &lightVP, sizeof(lightVP));
-                DrawObjectsForPass(shadowPass, cmd, scene, nullptr);
+                DrawSceneGeometry(shadowPass, cmd, scene);
             }
             graphicsDevice->EndRenderPass();
 
@@ -259,16 +291,16 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
 
     SDL_BindGPUGraphicsPipeline(renderPass, forwardPipeline);
 
-    // Bind shadow maps + sampler. All four slots are bound regardless of
-    // shadowCount so the pipeline's resource layout matches; unused
-    // shadow indices are -1 in the UBO and skipped by the shader.
+    // Bind shadow maps + sampler at slots 2..5 once per frame; the
+    // material's per-object textures occupy slots 0..1 and get rebound
+    // inside the draw loop. Slot ranges don't clobber each other.
     SDL_GPUTextureSamplerBinding shadowBindings[MaxShadowMaps];
     for (int i = 0; i < MaxShadowMaps; i++) {
         SDL_zero(shadowBindings[i]);
         shadowBindings[i].texture = shadowMaps[i]->GetGPUTexture();
         shadowBindings[i].sampler = shadowSampler->GetSampler();
     }
-    SDL_BindGPUFragmentSamplers(renderPass, 0, shadowBindings, MaxShadowMaps);
+    SDL_BindGPUFragmentSamplers(renderPass, 2, shadowBindings, MaxShadowMaps);
 
     const float aspect = static_cast<float>(graphicsDevice->GetScreenWidth()) /
                          static_cast<float>(graphicsDevice->GetScreenHeight());
@@ -277,7 +309,64 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
     SDL_PushGPUVertexUniformData(cmd, 0, &viewProj, sizeof(viewProj));
     SDL_PushGPUFragmentUniformData(cmd, 0, &lightingUbo, sizeof(lightingUbo));
 
-    DrawObjectsForPass(renderPass, cmd, scene, nullptr);
+    // Per-object: bind material textures at slots 0..1, push the
+    // material UBO, push the per-object vertex UBO, then draw. We can't
+    // share with the shadow path's DrawSceneGeometry helper because
+    // shadow passes don't bind materials.
+    Material defaultMaterial;
+    defaultMaterial.sampler = defaultMaterialSampler.get();
+
+    SDL_GPUSampler *defaultSampler = defaultMaterialSampler->GetSampler();
+    SDL_GPUTexture *whiteGpuTex = whiteTexture->GetGPUTexture();
+
+    for (const SceneObject &object : scene.objects) {
+        if (!object.mesh) {
+            continue;
+        }
+
+        const Material *mat = object.material ? object.material : &defaultMaterial;
+
+        MaterialUBO matUbo;
+        matUbo.baseColorFactor = mat->baseColorFactor;
+        matUbo.emissiveFactor = mat->emissiveFactor;
+        matUbo.metallicFactor = mat->metallicFactor;
+        matUbo.roughnessFactor = mat->roughnessFactor;
+        matUbo.hasBaseColorTexture = mat->baseColorTexture ? 1 : 0;
+        matUbo.hasMetallicRoughnessTexture = mat->metallicRoughnessTexture ? 1 : 0;
+        matUbo.pad = 0.0f;
+        SDL_PushGPUFragmentUniformData(cmd, 1, &matUbo, sizeof(matUbo));
+
+        SDL_GPUSampler *matSampler = (mat->sampler ? mat->sampler->GetSampler() : defaultSampler);
+
+        SDL_GPUTextureSamplerBinding matBindings[2];
+        SDL_zero(matBindings[0]);
+        matBindings[0].texture =
+            mat->baseColorTexture ? mat->baseColorTexture->GetGPUTexture() : whiteGpuTex;
+        matBindings[0].sampler = matSampler;
+        SDL_zero(matBindings[1]);
+        matBindings[1].texture = mat->metallicRoughnessTexture
+                                     ? mat->metallicRoughnessTexture->GetGPUTexture()
+                                     : whiteGpuTex;
+        matBindings[1].sampler = matSampler;
+        SDL_BindGPUFragmentSamplers(renderPass, 0, matBindings, 2);
+
+        ObjectUBO ubo;
+        ubo.model = object.transform;
+        ubo.colorTint = glm::vec4(object.color, 1.0f);
+        SDL_PushGPUVertexUniformData(cmd, 1, &ubo, sizeof(ubo));
+
+        SDL_GPUBufferBinding vbufBinding;
+        SDL_zero(vbufBinding);
+        vbufBinding.buffer = object.mesh->GetVertexBuffer();
+        SDL_BindGPUVertexBuffers(renderPass, 0, &vbufBinding, 1);
+
+        SDL_GPUBufferBinding ibufBinding;
+        SDL_zero(ibufBinding);
+        ibufBinding.buffer = object.mesh->GetIndexBuffer();
+        SDL_BindGPUIndexBuffer(renderPass, &ibufBinding, SDL_GPU_INDEXELEMENTSIZE_32BIT);
+
+        SDL_DrawGPUIndexedPrimitives(renderPass, object.mesh->GetIndexCount(), 1, 0, 0, 0);
+    }
 
     graphicsDevice->EndRenderPass();
 }
@@ -378,14 +467,18 @@ SDL_GPUGraphicsPipeline *ForwardRenderer::GetOrCreateShadowPipeline(
     ci.vertex_input_state.vertex_attributes = attrs;
     ci.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
 
-    // Depth bias keeps shadow acne off lit surfaces. Slope-scaled bias
-    // is the typical pairing for surface-aligned shadow casters.
+    // Depth bias keeps shadow acne off lit surfaces. Tuned together
+    // with the in-shader normal offset for a 24-unit ortho frustum on
+    // a D16 shadow map; smaller frustums or higher-precision formats
+    // tolerate lower values, but these bias up enough that the
+    // ground plane stays clean even with the 5x5 PCF kernel
+    // averaging individual acne dots into rings.
     ci.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
     ci.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
     ci.rasterizer_state.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
     ci.rasterizer_state.enable_depth_bias = true;
-    ci.rasterizer_state.depth_bias_constant_factor = 1.0f;
-    ci.rasterizer_state.depth_bias_slope_factor = 2.0f;
+    ci.rasterizer_state.depth_bias_constant_factor = 4.0f;
+    ci.rasterizer_state.depth_bias_slope_factor = 4.0f;
 
     ci.depth_stencil_state.enable_depth_test = true;
     ci.depth_stencil_state.enable_depth_write = true;
