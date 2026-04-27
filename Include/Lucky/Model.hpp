@@ -29,8 +29,7 @@ struct Texture;
  * a single node may reference several mesh indices.
  *
  * NodeTemplate is the data side of a model: shared across all instances.
- * Per-instance animated transforms live on `ModelInstance` (see future
- * task).
+ * Per-instance animated transforms live on `ModelInstance`.
  */
 struct NodeTemplate {
     std::string name;
@@ -39,6 +38,67 @@ struct NodeTemplate {
     glm::vec3 restScale = {1.0f, 1.0f, 1.0f};
     int parentIndex = -1;
     std::vector<int> meshIndices;
+};
+
+/**
+ * Which TRS component an animation channel targets.
+ */
+enum class AnimationPath {
+    Translation,
+    Rotation,
+    Scale,
+};
+
+/**
+ * Keyframe interpolation mode for an animation channel.
+ *
+ * - `Step` — hold the previous keyframe's value until the next time.
+ * - `Linear` — interpolate linearly (LERP for vec3, SLERP for quat).
+ * - `CubicSpline` — cubic Hermite spline with author-supplied tangents.
+ *   Lucky currently treats this as `Linear` since most assets either
+ *   use `Linear` or pre-bake cubic curves into linear keyframes via
+ *   the glTF exporter.
+ */
+enum class AnimationInterpolation {
+    Step,
+    Linear,
+    CubicSpline,
+};
+
+/**
+ * One keyframe in an animation channel.
+ *
+ * `time` is in seconds since the animation start. `value` packs three
+ * components for `Translation` / `Scale` channels (xyz) or four for
+ * `Rotation` channels (quaternion in glTF order, x/y/z/w).
+ */
+struct AnimationKeyframe {
+    float time = 0.0f;
+    glm::vec4 value = {0.0f, 0.0f, 0.0f, 0.0f};
+};
+
+/**
+ * One animation channel: a stream of keyframes targeting a specific
+ * node's TRS component.
+ */
+struct AnimationChannel {
+    int nodeIndex = -1;
+    AnimationPath path = AnimationPath::Translation;
+    AnimationInterpolation interpolation = AnimationInterpolation::Linear;
+    std::vector<AnimationKeyframe> keyframes;
+};
+
+/**
+ * One named animation: a duration plus the channels that play during
+ * that duration.
+ *
+ * Owned by the `Model` (rest data). `ModelInstance` references these
+ * via index for playback.
+ */
+struct AnimationDef {
+    std::string name;
+    float duration = 0.0f;
+    std::vector<AnimationChannel> channels;
 };
 
 /**
@@ -55,16 +115,22 @@ struct NodeTemplate {
  *   missing UVs default to (0, 0).
  * - Node hierarchy with rest TRS and parent indices. Matrix-valued node
  *   transforms are decomposed into TRS.
- * - PBR metallic-roughness materials with embedded textures (base color
- *   and metallic-roughness maps). One shared linear/repeat sampler per
- *   model. Materials with external (URI) textures are loaded with no
- *   texture; only embedded buffer-view images are decoded today.
+ * - PBR metallic-roughness materials with embedded textures (base color,
+ *   metallic-roughness, and emissive maps). One shared linear/repeat
+ *   sampler per model. Materials with external (URI) textures are
+ *   loaded with no texture; only embedded buffer-view images are
+ *   decoded today.
+ * - Animations (rigid node TRS only). Translation, Rotation, and
+ *   Scale channels with `Step` and `Linear` interpolation. Skinned /
+ *   skeletal animations require a separate vertex-shader path and are
+ *   not yet supported.
  *
  * # What's not loaded yet
  *
- * Animations, embedded cameras, lights, and non-PBR material extensions
- * (specular-glossiness, clearcoat, etc.). External-URI textures are
- * skipped. These will land alongside the matching consumers.
+ * Embedded cameras, lights, skinning data, and non-PBR material
+ * extensions (specular-glossiness, clearcoat, etc.). External-URI
+ * textures are skipped. These will land alongside the matching
+ * consumers.
  *
  * # Lifetime
  *
@@ -121,6 +187,22 @@ struct Model {
         return nodes[index];
     }
 
+    /** Number of animations loaded from the source glTF. */
+    int GetAnimationCount() const {
+        return static_cast<int>(animations.size());
+    }
+
+    /** Returns the animation at the given index. */
+    const AnimationDef &GetAnimation(int index) const {
+        return animations[index];
+    }
+
+    /**
+     * Looks up an animation by name. Returns -1 if no animation in the
+     * model matches.
+     */
+    int FindAnimation(const std::string &name) const;
+
     /** Number of materials loaded from the source glTF. */
     int GetMaterialCount() const {
         return static_cast<int>(materials.size());
@@ -175,6 +257,7 @@ struct Model {
     std::vector<Material> materials;
     std::vector<std::unique_ptr<Texture>> textures;
     std::unique_ptr<Sampler> materialSampler;
+    std::vector<AnimationDef> animations;
 };
 
 } // namespace Lucky

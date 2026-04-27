@@ -207,11 +207,10 @@ Model::Model(GraphicsDevice &graphicsDevice, const std::string &path) {
         // we just pass both through. (Without the texture, the
         // factor IS the emission for the whole surface -- typically
         // (0,0,0) unless the asset wants uniform glow.)
-        material.emissiveFactor = glm::vec3(
-            mat.emissive_factor[0], mat.emissive_factor[1], mat.emissive_factor[2]);
+        material.emissiveFactor =
+            glm::vec3(mat.emissive_factor[0], mat.emissive_factor[1], mat.emissive_factor[2]);
         if (mat.emissive_texture.texture && mat.emissive_texture.texture->image) {
-            const int idx =
-                static_cast<int>(mat.emissive_texture.texture->image - data->images);
+            const int idx = static_cast<int>(mat.emissive_texture.texture->image - data->images);
             if (idx >= 0 && idx < static_cast<int>(textures.size())) {
                 material.emissiveTexture = textures[idx].get();
             }
@@ -276,15 +275,94 @@ Model::Model(GraphicsDevice &graphicsDevice, const std::string &path) {
         }
     }
 
-    spdlog::info("Loaded glTF '{}': {} mesh(es), {} material(s), {} texture(s), {} node(s)",
+    // Animations.
+    animations.reserve(data->animations_count);
+    for (cgltf_size a = 0; a < data->animations_count; a++) {
+        const cgltf_animation &cgAnim = data->animations[a];
+        AnimationDef anim;
+        anim.name = cgAnim.name ? cgAnim.name : ("anim_" + std::to_string(a));
+        anim.channels.reserve(cgAnim.channels_count);
+        anim.duration = 0.0f;
+
+        for (cgltf_size c = 0; c < cgAnim.channels_count; c++) {
+            const cgltf_animation_channel &cgCh = cgAnim.channels[c];
+            if (!cgCh.target_node || !cgCh.sampler) {
+                continue;
+            }
+
+            AnimationChannel channel;
+            channel.nodeIndex = static_cast<int>(cgCh.target_node - data->nodes);
+            switch (cgCh.target_path) {
+            case cgltf_animation_path_type_translation:
+                channel.path = AnimationPath::Translation;
+                break;
+            case cgltf_animation_path_type_rotation:
+                channel.path = AnimationPath::Rotation;
+                break;
+            case cgltf_animation_path_type_scale:
+                channel.path = AnimationPath::Scale;
+                break;
+            default:
+                // Skip weights and any future paths we don't support.
+                continue;
+            }
+            switch (cgCh.sampler->interpolation) {
+            case cgltf_interpolation_type_step:
+                channel.interpolation = AnimationInterpolation::Step;
+                break;
+            case cgltf_interpolation_type_cubic_spline:
+                channel.interpolation = AnimationInterpolation::CubicSpline;
+                break;
+            case cgltf_interpolation_type_linear:
+            default:
+                channel.interpolation = AnimationInterpolation::Linear;
+                break;
+            }
+
+            const cgltf_accessor *timeAcc = cgCh.sampler->input;
+            const cgltf_accessor *valAcc = cgCh.sampler->output;
+            if (!timeAcc || !valAcc) {
+                continue;
+            }
+
+            const size_t keyframeCount = timeAcc->count;
+            const int components = (channel.path == AnimationPath::Rotation) ? 4 : 3;
+            channel.keyframes.resize(keyframeCount);
+            for (size_t k = 0; k < keyframeCount; k++) {
+                AnimationKeyframe &kf = channel.keyframes[k];
+                cgltf_accessor_read_float(timeAcc, k, &kf.time, 1);
+                cgltf_accessor_read_float(valAcc, k, &kf.value.x, components);
+                if (kf.time > anim.duration) {
+                    anim.duration = kf.time;
+                }
+            }
+
+            anim.channels.push_back(std::move(channel));
+        }
+
+        animations.push_back(std::move(anim));
+    }
+
+    spdlog::info(
+        "Loaded glTF '{}': {} mesh(es), {} material(s), {} texture(s), {} node(s), {} animation(s)",
         path,
         meshes.size(),
         materials.size(),
         textures.size(),
-        nodes.size());
+        nodes.size(),
+        animations.size());
 }
 
 Model::~Model() = default;
+
+int Model::FindAnimation(const std::string &name) const {
+    for (size_t i = 0; i < animations.size(); i++) {
+        if (animations[i].name == name) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
 
 void Model::ComputeRestWorldTransforms(
     std::vector<glm::mat4> &out, const glm::mat4 &rootTransform) const {

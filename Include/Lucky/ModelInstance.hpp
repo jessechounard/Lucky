@@ -11,6 +11,22 @@ struct Model;
 struct Scene3D;
 
 /**
+ * Per-instance playback state for one of the bound `Model`'s
+ * animations.
+ *
+ * `time` is the current playhead in seconds since the animation
+ * started. `playing` gates whether `ModelInstance::Update` advances
+ * this animation. `loop` controls behavior when `time` exceeds the
+ * animation's duration: wrap to zero (loop) or clamp to the last
+ * frame and stop (one-shot).
+ */
+struct AnimationPlayback {
+    float time = 0.0f;
+    bool playing = false;
+    bool loop = false;
+};
+
+/**
  * One placement of a `Model` in the world, with per-node TRS values
  * separate from the shared rest pose.
  *
@@ -62,6 +78,47 @@ struct ModelInstance {
     void ResetToRestPose();
 
     /**
+     * Starts playback of one of the bound Model's animations.
+     *
+     * Resets the playback's time to 0 and begins advancing it on
+     * subsequent `Update` calls. Index out of range is silently
+     * ignored. Multiple animations can play simultaneously; their
+     * channels are written in playback order so later animations
+     * overwrite earlier ones (no blending in this tier).
+     *
+     * \param index animation index in the Model's list, in
+     *              `[0, GetModel().GetAnimationCount())`.
+     * \param loop if true, wraps `time` back to 0 when it exceeds the
+     *             animation's duration; otherwise clamps and stops.
+     */
+    void PlayAnimation(int index, bool loop = true);
+
+    /**
+     * Stops playback of the given animation. Out-of-range indices are
+     * silently ignored. The animation's playhead is preserved; calling
+     * `PlayAnimation` again resets it to 0.
+     */
+    void StopAnimation(int index);
+
+    /** Stops all currently-playing animations on this instance. */
+    void StopAllAnimations();
+
+    /**
+     * Advances the playhead of every playing animation by `deltaTime`
+     * seconds, samples each channel, and writes the result into the
+     * affected nodes' TRS values. Marks the world-transform cache
+     * dirty if any animation produced a write.
+     *
+     * Channels not driven by any playing animation keep whatever value
+     * was last written to them (rest pose by default, or a value the
+     * caller wrote via `SetNodeTransform`). This is the seam where
+     * procedural animation (look-at, IK, springs) layers on top: call
+     * `Update`, then call `SetNodeTransform` for any procedurally-
+     * driven joints, then `AppendToScene`.
+     */
+    void Update(float deltaTime);
+
+    /**
      * Returns the cached world transforms, recomputing if any TRS or
      * the root transform has changed since the last call.
      */
@@ -93,6 +150,11 @@ struct ModelInstance {
     std::vector<glm::quat> rotations;
     std::vector<glm::vec3> scales;
     glm::mat4 rootTransform = glm::mat4(1.0f);
+
+    // Per-animation playback state, parallel to `model->animations`.
+    // Sized once in the constructor so `playbacks[i]` is always valid
+    // for a valid animation index.
+    std::vector<AnimationPlayback> playbacks;
 
     // Mutable cache: invalidated when any TRS or root transform changes,
     // recomputed by GetWorldTransforms / AppendToScene.

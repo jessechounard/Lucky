@@ -34,6 +34,13 @@ Copyright (c) 2017, Cesium.
 Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0)
 https://creativecommons.org/licenses/by/4.0/
 
+### BoxAnimated.glb
+
+From the Khronos glTF Sample Assets, originally by Cesium.
+Copyright (c) 2017, Cesium.
+Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+
 ### MetalRoughSpheres.glb
 
 From the Khronos glTF Sample Assets, by Ed Mackey.
