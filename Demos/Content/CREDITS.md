@@ -34,6 +34,20 @@ Copyright (c) 2017, Cesium.
 Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0)
 https://creativecommons.org/licenses/by/4.0/
 
+### MetalRoughSpheres.glb
+
+From the Khronos glTF Sample Assets, by Ed Mackey.
+Copyright (c) 2017, Analytical Graphics, Inc.
+Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+
+### BoomBox.glb
+
+From the Khronos glTF Sample Assets, by Microsoft.
+Copyright (c) 2017.
+Licensed under Creative Commons Zero (CC0 1.0 Universal)
+https://creativecommons.org/publicdomain/zero/1.0/
+
 ## Fonts
 
 ### MouseMemoirs-Regular.ttf
