@@ -47,6 +47,22 @@ struct MeshData {
 MeshData MakeCubeMeshData(float size = 1.0f);
 
 /**
+ * Generates an axis-aligned box centered at the origin with separate
+ * extents per axis.
+ *
+ * Same per-face vertex layout as `MakeCubeMeshData` (24 vertices, 36
+ * indices). Prefer this over scaling a cube non-uniformly: a non-uniform
+ * scale on the model matrix breaks normals (the renderer transforms
+ * normals by the model upper-3x3, which is only correct for rotations
+ * and uniform scales).
+ *
+ * \param width  X extent. Positive.
+ * \param height Y extent. Positive.
+ * \param depth  Z extent. Positive.
+ */
+MeshData MakeBoxMeshData(float width, float height, float depth);
+
+/**
  * Generates a flat XZ plane centered at the origin, with the normal
  * pointing along +Y.
  *
@@ -56,6 +72,21 @@ MeshData MakeCubeMeshData(float size = 1.0f);
  * \param size edge length. Default 1.0; positive only.
  */
 MeshData MakePlaneMeshData(float size = 1.0f);
+
+/**
+ * Generates a vertically-elongated octahedron (a gemstone-like diamond
+ * shape) centered at the origin.
+ *
+ * Eight triangular faces meet at the top and bottom apexes, with four
+ * equatorial vertices forming a square waist on the XZ plane. Each
+ * face has its own three vertices so face normals are exact and the
+ * lit result is sharply faceted -- the look most people imagine for
+ * "spinning diamond." Produces 24 vertices and 24 indices.
+ *
+ * \param radius distance from the Y axis to the equator. Positive.
+ * \param height distance from the origin to each apex. Positive.
+ */
+MeshData MakeDiamondMeshData(float radius = 1.0f, float height = 1.5f);
 
 /**
  * GPU-resident mesh: paired vertex and index buffers, both static.
