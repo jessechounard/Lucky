@@ -37,7 +37,7 @@ cbuffer MaterialUBO : register(b1, space3) {
 
 // SDL_shadercross classifies each texture+sampler PAIR as a "sampler"
 // binding and any unpaired textures as "storage_textures". To get all
-// six textures into the SDL_BindGPUFragmentSamplers path, every
+// seven textures into the SDL_BindGPUFragmentSamplers path, every
 // texture needs its own SamplerState declaration -- even though we
 // bind the same Lucky::Sampler instance to all four shadow slots.
 Texture2D    BaseColorTexture          : register(t0, space2);
@@ -160,15 +160,13 @@ PSOutput main(PSInput input) {
         metallic *= mrSample.b;
         roughness *= mrSample.g;
     }
-    // Roughness floor of 0.5 with non-IBL rendering. Production
-    // engines with image-based lighting clamp at 0.045-0.08 because
-    // IBL prefiltering localizes the specular peak. With only
-    // analytical lights, low roughness produces broad bright
-    // highlights that whitewash surfaces (e.g. BoomBox packs
-    // roughness=0 for its body, expecting IBL). Half-rough is the
-    // smallest floor that keeps mirror-authored materials looking
-    // like dark plastic instead of overexposed white.
-    roughness = clamp(roughness, 0.5, 1.0);
+    // Roughness floor for non-IBL rendering. Production engines with
+    // image-based lighting clamp at 0.045-0.08 because IBL
+    // prefiltering localizes the specular peak. With only analytical
+    // lights, very low roughness can produce single-pixel fireflies
+    // as geometry rotates; 0.1 is the smallest floor that keeps that
+    // stable.
+    roughness = clamp(roughness, 0.1, 1.0);
 
     // PBR setup: F0 lerps between dielectric (0.04) and full metal (base color).
     float3 N = normalize(input.Normal);
@@ -211,7 +209,13 @@ PSOutput main(PSInput input) {
         float3 F = F_Schlick(VdotH, F0);
 
         float3 specular = (D * G * F) / max(4.0 * NdotV * NdotL, 1e-4);
-        specular = min(specular, float3(1.0, 1.0, 1.0));
+        // Per-channel firefly clamp. Picked high enough that typical
+        // off-peak pixels stay below it (preserving F0 color tint on
+        // metals), but low enough to bound single-pixel mirror-peak
+        // brightness on smooth surfaces. A magnitude clamp would scale
+        // all channels uniformly and crush metal tints when the cap
+        // hits, so per-channel is correct here.
+        specular = min(specular, float3(16.0, 16.0, 16.0));
 
         float3 kd = (1.0 - F) * (1.0 - metallic);
         // Lambert without the energy-normalizing /PI -- production

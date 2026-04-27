@@ -102,11 +102,11 @@ glm::mat4 BuildShadowViewProj(const Light &light) {
             up = glm::vec3(0.0f, 0.0f, 1.0f);
         }
         const glm::mat4 view = glm::lookAt(eye, target, up);
-        // Fixed-size frustum sized to cover the largest demo scene
-        // (MetalRoughSpheres ~14 units across after rotation). A real
-        // scene wants this fitted to the camera frustum each frame
-        // (cascaded shadow maps); the trade-off here is shadow texel
-        // density (1024 texels / 24 world units ≈ 23mm/texel).
+        // Fixed-size frustum sized to cover the typical demo scene.
+        // A real scene wants this fitted to the camera frustum each
+        // frame (cascaded shadow maps); the trade-off here is shadow
+        // texel density: ShadowMapSize / (2*halfExtent) world units
+        // per texel (currently 2048 / 24 ≈ 12mm/texel).
         const float halfExtent = 12.0f;
         const glm::mat4 proj = glm::orthoRH_ZO(
             -halfExtent, halfExtent, -halfExtent, halfExtent, 0.1f, distance * 2.0f);
@@ -188,10 +188,10 @@ ForwardRenderer::ForwardRenderer(GraphicsDevice &graphicsDevice) : graphicsDevic
     shadowSampler = std::make_unique<Sampler>(graphicsDevice, shadowSampDesc);
 
     // 1x1 white fallback, bound whenever a material doesn't supply
-    // its own base-color or metallic-roughness texture. The
-    // texture-presence flags in the MaterialUBO tell the shader to
-    // ignore the sampled value in those cases, so the content only
-    // matters as a sentinel.
+    // its own base-color, metallic-roughness, or emissive texture.
+    // The texture-presence flags in the MaterialUBO tell the shader
+    // to ignore the sampled value in those cases, so the content
+    // only matters as a sentinel.
     uint8_t whitePixel[4] = {255, 255, 255, 255};
     whiteTexture = std::make_unique<Texture>(graphicsDevice,
         TextureType::Default,
@@ -298,14 +298,16 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
     SDL_PushGPUVertexUniformData(cmd, 0, &viewProj, sizeof(viewProj));
     SDL_PushGPUFragmentUniformData(cmd, 0, &lightingUbo, sizeof(lightingUbo));
 
-    // Per-object: bind material textures at slots 0..1, push the
-    // material UBO, push the per-object vertex UBO, then draw. We can't
-    // share with the shadow path's DrawSceneGeometry helper because
-    // shadow passes don't bind materials.
+    // Per-object: bind material textures (base color, metallic-
+    // roughness, emissive) plus the four shadow maps, push the
+    // material UBO, push the per-object vertex UBO, then draw. We
+    // can't share with the shadow path's DrawSceneGeometry helper
+    // because shadow passes don't bind materials.
     Material defaultMaterial;
     defaultMaterial.sampler = defaultMaterialSampler.get();
 
     SDL_GPUSampler *defaultSampler = defaultMaterialSampler->GetSampler();
+    SDL_GPUSampler *shadowSamp = shadowSampler->GetSampler();
     SDL_GPUTexture *whiteGpuTex = whiteTexture->GetGPUTexture();
 
     for (const SceneObject &object : scene.objects) {
@@ -326,7 +328,6 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
         SDL_PushGPUFragmentUniformData(cmd, 1, &matUbo, sizeof(matUbo));
 
         SDL_GPUSampler *matSampler = (mat->sampler ? mat->sampler->GetSampler() : defaultSampler);
-        SDL_GPUSampler *shadowSamp = shadowSampler->GetSampler();
 
         // Bind all seven fragment texture+sampler pairs in one call.
         // Splitting these into separate range binds (e.g. material per
