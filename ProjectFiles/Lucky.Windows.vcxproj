@@ -140,6 +140,7 @@
     <ClCompile Include="..\Source\Graphics\SdfFont.cpp" />
     <ClCompile Include="..\Source\Graphics\Shader.cpp" />
     <ClCompile Include="..\Source\Graphics\ShapeRenderer.cpp" />
+    <ClCompile Include="..\Source\Graphics\SkinnedMesh.cpp" />
     <ClCompile Include="..\Source\Graphics\SlugFont.cpp" />
     <ClCompile Include="..\Source\Graphics\SlugRenderer.cpp" />
     <ClCompile Include="..\Source\Graphics\SpriteAnimation.cpp" />
@@ -206,6 +207,7 @@
     <ClInclude Include="..\Include\Lucky\SdfFont.hpp" />
     <ClInclude Include="..\Include\Lucky\Shader.hpp" />
     <ClInclude Include="..\Include\Lucky\ShapeRenderer.hpp" />
+    <ClInclude Include="..\Include\Lucky\SkinnedMesh.hpp" />
     <ClInclude Include="..\Include\Lucky\SlugFont.hpp" />
     <ClInclude Include="..\Include\Lucky\SlugRenderer.hpp" />
     <ClInclude Include="..\Include\Lucky\Sound.hpp" />
@@ -230,6 +232,15 @@ shadercross "%(FullPath)" -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"
       <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
     </CustomBuild>
     <CustomBuild Include="..\Shaders\forward.vert.hlsl">
+      <FileType>Document</FileType>
+      <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
+shadercross "%(FullPath)" -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"
+shadercross "%(FullPath)" -d DXIL -o "$(OutDir)Content\Shaders\%(Filename).dxil"
+shadercross "%(FullPath)" -d MSL -o "$(OutDir)Content\Shaders\%(Filename).msl"
+shadercross "%(FullPath)" -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"</Command>
+      <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\forward_skinned.vert.hlsl">
       <FileType>Document</FileType>
       <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
 shadercross "%(FullPath)" -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"
@@ -284,6 +295,15 @@ shadercross "%(FullPath)" -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"
       <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
     </CustomBuild>
     <CustomBuild Include="..\Shaders\shadow_depth.vert.hlsl">
+      <FileType>Document</FileType>
+      <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
+shadercross "%(FullPath)" -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"
+shadercross "%(FullPath)" -d DXIL -o "$(OutDir)Content\Shaders\%(Filename).dxil"
+shadercross "%(FullPath)" -d MSL -o "$(OutDir)Content\Shaders\%(Filename).msl"
+shadercross "%(FullPath)" -d JSON -o "$(OutDir)Content\Shaders\%(Filename).json"</Command>
+      <Outputs>$(OutDir)Content\Shaders\%(Filename).spv;$(OutDir)Content\Shaders\%(Filename).dxil;$(OutDir)Content\Shaders\%(Filename).msl;$(OutDir)Content\Shaders\%(Filename).json</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\shadow_depth_skinned.vert.hlsl">
       <FileType>Document</FileType>
       <Command>if not exist "$(OutDir)Content\Shaders" mkdir "$(OutDir)Content\Shaders"
 shadercross "%(FullPath)" -d SPIRV -o "$(OutDir)Content\Shaders\%(Filename).spv"

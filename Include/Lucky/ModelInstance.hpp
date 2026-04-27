@@ -125,6 +125,21 @@ struct ModelInstance {
     const std::vector<glm::mat4> &GetWorldTransforms() const;
 
     /**
+     * Returns the per-joint world matrices for the given skin (one per
+     * entry in `Skin::jointNodes`). Each matrix is
+     * `worldTransform[jointNode] * Skin::inverseBindMatrices[j]`, the
+     * exact matrix the skinned vertex shader multiplies by per-vertex
+     * weight.
+     *
+     * The returned reference is valid until the bound `Model` is
+     * destroyed; the data inside is refreshed implicitly on the next
+     * `Update`, `SetNodeTransform`, or `SetRootTransform`.
+     *
+     * \param skinIndex skin index in `[0, GetModel().GetSkinCount())`.
+     */
+    const std::vector<glm::mat4> &GetSkinJointMatrices(int skinIndex) const;
+
+    /**
      * Appends one `SceneObject` per (node, mesh) pair to `scene.objects`,
      * using the current world transforms. Material pointers are resolved
      * from the bound Model, so the renderer sees the same materials it
@@ -159,6 +174,14 @@ struct ModelInstance {
     // Mutable cache: invalidated when any TRS or root transform changes,
     // recomputed by GetWorldTransforms / AppendToScene.
     mutable std::vector<glm::mat4> worldTransforms;
+
+    // Mutable cache: per-skin joint matrix arrays
+    // (`worldTransforms[joint] * inverseBindMatrix[joint]`), refreshed
+    // alongside `worldTransforms`. Sized once in the constructor so the
+    // pointer to `skinJointMatrices[i]` is stable for the instance's
+    // lifetime; the inner vectors keep their capacity once filled.
+    mutable std::vector<std::vector<glm::mat4>> skinJointMatrices;
+
     mutable bool dirty = true;
 };
 

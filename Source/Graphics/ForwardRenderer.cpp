@@ -17,6 +17,7 @@
 #include <Lucky/Sampler.hpp>
 #include <Lucky/Scene3D.hpp>
 #include <Lucky/Shader.hpp>
+#include <Lucky/SkinnedMesh.hpp>
 #include <Lucky/Texture.hpp>
 
 namespace Lucky {
@@ -71,6 +72,23 @@ struct LightingUBO {
 };
 static_assert(sizeof(LightingUBO) == 32 + MaxLights * 64 + ForwardRenderer::MaxShadowMaps * 64,
     "LightingUBO must match HLSL cbuffer layout");
+
+// Per-draw vertex UBO for the skinned path: just ColorTint, since the
+// joint matrices already encode each vertex's world placement so the
+// shader doesn't need a Model matrix.
+struct SkinnedObjectUBO {
+    glm::vec4 colorTint;
+};
+
+// Per-draw vertex UBO at slot 2 for the skinned path. Holds the full
+// joint-matrix array; the shader indexes it via per-vertex Joints
+// indices. Sized to ForwardRenderer::MaxJoints; unused trailing
+// entries are don't-care.
+struct JointMatricesUBO {
+    glm::mat4 matrices[ForwardRenderer::MaxJoints];
+};
+static_assert(sizeof(JointMatricesUBO) == ForwardRenderer::MaxJoints * 64,
+    "JointMatricesUBO must match HLSL cbuffer layout");
 
 int LightTypeToShader(LightType type) {
     switch (type) {
@@ -153,6 +171,55 @@ void DrawSceneGeometry(SDL_GPURenderPass *pass, SDL_GPUCommandBuffer *cmd, const
     }
 }
 
+// Push the joint matrix array for a skinned draw. Pads beyond the
+// source skin's joint count out to MaxJoints because the cbuffer is a
+// fixed-size array; trailing slots are set to identity for safety
+// even though no vertex's Joint indices should reach them.
+void PushJointMatrices(SDL_GPUCommandBuffer *cmd, const std::vector<glm::mat4> &joints) {
+    SDL_assert(static_cast<int>(joints.size()) <= ForwardRenderer::MaxJoints);
+    JointMatricesUBO ubo;
+    const size_t copyCount = std::min<size_t>(joints.size(), ForwardRenderer::MaxJoints);
+    for (size_t j = 0; j < copyCount; j++) {
+        ubo.matrices[j] = joints[j];
+    }
+    for (size_t j = copyCount; j < ForwardRenderer::MaxJoints; j++) {
+        ubo.matrices[j] = glm::mat4(1.0f);
+    }
+    SDL_PushGPUVertexUniformData(cmd, 2, &ubo, sizeof(ubo));
+}
+
+// Skinned variant of DrawSceneGeometry. Pushes per-draw joint
+// matrices at slot 2 and a small ColorTint UBO at slot 1, then binds
+// the SkinnedMesh's vertex/index buffers (Vertex3DSkinned format).
+// Slot 0 (Frame) is the caller's responsibility -- both the shadow
+// and main-pass call sites push it once before iterating objects.
+void DrawSkinnedSceneGeometry(
+    SDL_GPURenderPass *pass, SDL_GPUCommandBuffer *cmd, const Scene3D &scene) {
+    for (const SkinnedSceneObject &object : scene.skinnedObjects) {
+        if (!object.mesh || !object.jointMatrices) {
+            continue;
+        }
+
+        SkinnedObjectUBO objectUbo;
+        objectUbo.colorTint = glm::vec4(object.color, 1.0f);
+        SDL_PushGPUVertexUniformData(cmd, 1, &objectUbo, sizeof(objectUbo));
+
+        PushJointMatrices(cmd, *object.jointMatrices);
+
+        SDL_GPUBufferBinding vbufBinding;
+        SDL_zero(vbufBinding);
+        vbufBinding.buffer = object.mesh->GetVertexBuffer();
+        SDL_BindGPUVertexBuffers(pass, 0, &vbufBinding, 1);
+
+        SDL_GPUBufferBinding ibufBinding;
+        SDL_zero(ibufBinding);
+        ibufBinding.buffer = object.mesh->GetIndexBuffer();
+        SDL_BindGPUIndexBuffer(pass, &ibufBinding, SDL_GPU_INDEXELEMENTSIZE_32BIT);
+
+        SDL_DrawGPUIndexedPrimitives(pass, object.mesh->GetIndexCount(), 1, 0, 0, 0);
+    }
+}
+
 } // namespace
 
 ForwardRenderer::ForwardRenderer(GraphicsDevice &graphicsDevice) : graphicsDevice(&graphicsDevice) {
@@ -164,12 +231,18 @@ ForwardRenderer::ForwardRenderer(GraphicsDevice &graphicsDevice) : graphicsDevic
     forwardFragmentShader = std::make_unique<Shader>(graphicsDevice,
         (basePath / "Content/Shaders/forward.frag").generic_string(),
         SDL_GPU_SHADERSTAGE_FRAGMENT);
+    forwardSkinnedVertexShader = std::make_unique<Shader>(graphicsDevice,
+        (basePath / "Content/Shaders/forward_skinned.vert").generic_string(),
+        SDL_GPU_SHADERSTAGE_VERTEX);
     shadowVertexShader = std::make_unique<Shader>(graphicsDevice,
         (basePath / "Content/Shaders/shadow_depth.vert").generic_string(),
         SDL_GPU_SHADERSTAGE_VERTEX);
     shadowFragmentShader = std::make_unique<Shader>(graphicsDevice,
         (basePath / "Content/Shaders/shadow_depth.frag").generic_string(),
         SDL_GPU_SHADERSTAGE_FRAGMENT);
+    shadowSkinnedVertexShader = std::make_unique<Shader>(graphicsDevice,
+        (basePath / "Content/Shaders/shadow_depth_skinned.vert").generic_string(),
+        SDL_GPU_SHADERSTAGE_VERTEX);
 
     for (int i = 0; i < MaxShadowMaps; i++) {
         shadowMaps[i] = std::make_unique<Texture>(graphicsDevice,
@@ -209,8 +282,14 @@ ForwardRenderer::~ForwardRenderer() {
     for (auto &[key, pipeline] : forwardPipelines) {
         SDL_ReleaseGPUGraphicsPipeline(device, pipeline);
     }
+    for (auto &[key, pipeline] : forwardSkinnedPipelines) {
+        SDL_ReleaseGPUGraphicsPipeline(device, pipeline);
+    }
     if (shadowPipeline) {
         SDL_ReleaseGPUGraphicsPipeline(device, shadowPipeline);
+    }
+    if (shadowSkinnedPipeline) {
+        SDL_ReleaseGPUGraphicsPipeline(device, shadowSkinnedPipeline);
     }
 }
 
@@ -228,6 +307,18 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
     SDL_GPUGraphicsPipeline *shadowPipe = GetOrCreateShadowPipeline(depthFormat);
     if (!forwardPipeline || !shadowPipe) {
         return;
+    }
+    // Skinned pipelines are only required if the scene actually has
+    // skinned objects this frame; lazy creation keeps single-mesh
+    // demos from paying the pipeline-creation cost.
+    SDL_GPUGraphicsPipeline *forwardSkinnedPipeline = nullptr;
+    SDL_GPUGraphicsPipeline *shadowSkinnedPipe = nullptr;
+    if (!scene.skinnedObjects.empty()) {
+        forwardSkinnedPipeline = GetOrCreateForwardSkinnedPipeline(colorFormat, depthFormat);
+        shadowSkinnedPipe = GetOrCreateShadowSkinnedPipeline(depthFormat);
+        if (!forwardSkinnedPipeline || !shadowSkinnedPipe) {
+            return;
+        }
     }
 
     SDL_GPUCommandBuffer *cmd = graphicsDevice->GetCommandBuffer();
@@ -272,6 +363,13 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
                 SDL_BindGPUGraphicsPipeline(shadowPass, shadowPipe);
                 SDL_PushGPUVertexUniformData(cmd, 0, &lightVP, sizeof(lightVP));
                 DrawSceneGeometry(shadowPass, cmd, scene);
+
+                if (shadowSkinnedPipe && !scene.skinnedObjects.empty()) {
+                    SDL_BindGPUGraphicsPipeline(shadowPass, shadowSkinnedPipe);
+                    // LightViewProj at slot 0 was already pushed; the
+                    // skinned shadow shader reads the same Frame UBO.
+                    DrawSkinnedSceneGeometry(shadowPass, cmd, scene);
+                }
             }
             graphicsDevice->EndRenderPass();
 
@@ -372,6 +470,76 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
         SDL_BindGPUIndexBuffer(renderPass, &ibufBinding, SDL_GPU_INDEXELEMENTSIZE_32BIT);
 
         SDL_DrawGPUIndexedPrimitives(renderPass, object.mesh->GetIndexCount(), 1, 0, 0, 0);
+    }
+
+    // Skinned forward draws. Switch pipelines but keep the existing
+    // Frame UBO (slot 0) and per-draw fragment state -- those persist
+    // across pipeline binds within the same render pass. The skinned
+    // pipeline reads the same fragment cbuffers, sampler bindings, and
+    // ViewProjection slot as the rigid path; only the vertex inputs
+    // and per-draw vertex UBOs change.
+    if (forwardSkinnedPipeline && !scene.skinnedObjects.empty()) {
+        SDL_BindGPUGraphicsPipeline(renderPass, forwardSkinnedPipeline);
+
+        for (const SkinnedSceneObject &object : scene.skinnedObjects) {
+            if (!object.mesh || !object.jointMatrices) {
+                continue;
+            }
+
+            const Material *mat = object.material ? object.material : &defaultMaterial;
+
+            MaterialUBO matUbo;
+            matUbo.baseColorFactor = mat->baseColorFactor;
+            matUbo.emissiveFactor = mat->emissiveFactor;
+            matUbo.metallicFactor = mat->metallicFactor;
+            matUbo.roughnessFactor = mat->roughnessFactor;
+            matUbo.hasBaseColorTexture = mat->baseColorTexture ? 1 : 0;
+            matUbo.hasMetallicRoughnessTexture = mat->metallicRoughnessTexture ? 1 : 0;
+            matUbo.hasEmissiveTexture = mat->emissiveTexture ? 1 : 0;
+            SDL_PushGPUFragmentUniformData(cmd, 1, &matUbo, sizeof(matUbo));
+
+            SDL_GPUSampler *matSampler =
+                (mat->sampler ? mat->sampler->GetSampler() : defaultSampler);
+
+            SDL_GPUTextureSamplerBinding bindings[3 + MaxShadowMaps];
+            SDL_zero(bindings[0]);
+            bindings[0].texture =
+                mat->baseColorTexture ? mat->baseColorTexture->GetGPUTexture() : whiteGpuTex;
+            bindings[0].sampler = matSampler;
+            SDL_zero(bindings[1]);
+            bindings[1].texture = mat->metallicRoughnessTexture
+                                      ? mat->metallicRoughnessTexture->GetGPUTexture()
+                                      : whiteGpuTex;
+            bindings[1].sampler = matSampler;
+            for (int i = 0; i < MaxShadowMaps; i++) {
+                SDL_zero(bindings[2 + i]);
+                bindings[2 + i].texture = shadowMaps[i]->GetGPUTexture();
+                bindings[2 + i].sampler = shadowSamp;
+            }
+            SDL_zero(bindings[2 + MaxShadowMaps]);
+            bindings[2 + MaxShadowMaps].texture =
+                mat->emissiveTexture ? mat->emissiveTexture->GetGPUTexture() : whiteGpuTex;
+            bindings[2 + MaxShadowMaps].sampler = matSampler;
+            SDL_BindGPUFragmentSamplers(renderPass, 0, bindings, 3 + MaxShadowMaps);
+
+            SkinnedObjectUBO objectUbo;
+            objectUbo.colorTint = glm::vec4(object.color, 1.0f);
+            SDL_PushGPUVertexUniformData(cmd, 1, &objectUbo, sizeof(objectUbo));
+
+            PushJointMatrices(cmd, *object.jointMatrices);
+
+            SDL_GPUBufferBinding vbufBinding;
+            SDL_zero(vbufBinding);
+            vbufBinding.buffer = object.mesh->GetVertexBuffer();
+            SDL_BindGPUVertexBuffers(renderPass, 0, &vbufBinding, 1);
+
+            SDL_GPUBufferBinding ibufBinding;
+            SDL_zero(ibufBinding);
+            ibufBinding.buffer = object.mesh->GetIndexBuffer();
+            SDL_BindGPUIndexBuffer(renderPass, &ibufBinding, SDL_GPU_INDEXELEMENTSIZE_32BIT);
+
+            SDL_DrawGPUIndexedPrimitives(renderPass, object.mesh->GetIndexCount(), 1, 0, 0, 0);
+        }
     }
 
     graphicsDevice->EndRenderPass();
@@ -504,6 +672,139 @@ SDL_GPUGraphicsPipeline *ForwardRenderer::GetOrCreateShadowPipeline(
     shadowPipeline = pipeline;
     shadowPipelineDepthFormat = depthFormat;
     return shadowPipeline;
+}
+
+namespace {
+
+// Vertex layout shared by the skinned forward and shadow pipelines.
+// Five attributes: position, uv, normal, joint indices (uint4), and
+// joint weights (float4). Matches Vertex3DSkinned and the input
+// declaration in forward_skinned.vert.hlsl / shadow_depth_skinned.vert.hlsl.
+void FillSkinnedVertexInput(
+    SDL_GPUVertexBufferDescription &vbufDesc, SDL_GPUVertexAttribute attrs[5]) {
+    SDL_zero(vbufDesc);
+    vbufDesc.slot = 0;
+    vbufDesc.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
+    vbufDesc.pitch = sizeof(Vertex3DSkinned);
+
+    SDL_zero(attrs[0]);
+    attrs[0].location = 0;
+    attrs[0].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
+    attrs[0].offset = offsetof(Vertex3DSkinned, x);
+    SDL_zero(attrs[1]);
+    attrs[1].location = 1;
+    attrs[1].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2;
+    attrs[1].offset = offsetof(Vertex3DSkinned, u);
+    SDL_zero(attrs[2]);
+    attrs[2].location = 2;
+    attrs[2].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
+    attrs[2].offset = offsetof(Vertex3DSkinned, nx);
+    SDL_zero(attrs[3]);
+    attrs[3].location = 3;
+    attrs[3].format = SDL_GPU_VERTEXELEMENTFORMAT_UINT4;
+    attrs[3].offset = offsetof(Vertex3DSkinned, j0);
+    SDL_zero(attrs[4]);
+    attrs[4].location = 4;
+    attrs[4].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4;
+    attrs[4].offset = offsetof(Vertex3DSkinned, w0);
+}
+
+} // namespace
+
+SDL_GPUGraphicsPipeline *ForwardRenderer::GetOrCreateForwardSkinnedPipeline(
+    SDL_GPUTextureFormat colorFormat, SDL_GPUTextureFormat depthFormat) {
+    ForwardPipelineKey key{colorFormat, depthFormat};
+    if (auto it = forwardSkinnedPipelines.find(key); it != forwardSkinnedPipelines.end()) {
+        return it->second;
+    }
+
+    SDL_GPUDevice *device = graphicsDevice->GetDevice();
+
+    SDL_GPUVertexBufferDescription vbufDesc;
+    SDL_GPUVertexAttribute attrs[5];
+    FillSkinnedVertexInput(vbufDesc, attrs);
+
+    SDL_GPUColorTargetDescription colorTarget;
+    SDL_zero(colorTarget);
+    colorTarget.format = colorFormat;
+
+    SDL_GPUGraphicsPipelineCreateInfo ci;
+    SDL_zero(ci);
+    ci.vertex_shader = forwardSkinnedVertexShader->GetHandle();
+    ci.fragment_shader = forwardFragmentShader->GetHandle();
+    ci.vertex_input_state.num_vertex_buffers = 1;
+    ci.vertex_input_state.vertex_buffer_descriptions = &vbufDesc;
+    ci.vertex_input_state.num_vertex_attributes = 5;
+    ci.vertex_input_state.vertex_attributes = attrs;
+    ci.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+    ci.depth_stencil_state.enable_depth_test = true;
+    ci.depth_stencil_state.enable_depth_write = true;
+    ci.depth_stencil_state.compare_op = SDL_GPU_COMPAREOP_LESS_OR_EQUAL;
+    ci.target_info.num_color_targets = 1;
+    ci.target_info.color_target_descriptions = &colorTarget;
+    ci.target_info.has_depth_stencil_target = true;
+    ci.target_info.depth_stencil_format = depthFormat;
+
+    SDL_GPUGraphicsPipeline *pipeline = SDL_CreateGPUGraphicsPipeline(device, &ci);
+    if (!pipeline) {
+        spdlog::error("Failed to create forward skinned pipeline: {}", SDL_GetError());
+        return nullptr;
+    }
+
+    forwardSkinnedPipelines[key] = pipeline;
+    return pipeline;
+}
+
+SDL_GPUGraphicsPipeline *ForwardRenderer::GetOrCreateShadowSkinnedPipeline(
+    SDL_GPUTextureFormat depthFormat) {
+    if (shadowSkinnedPipeline && shadowSkinnedPipelineDepthFormat == depthFormat) {
+        return shadowSkinnedPipeline;
+    }
+    if (shadowSkinnedPipeline) {
+        SDL_ReleaseGPUGraphicsPipeline(graphicsDevice->GetDevice(), shadowSkinnedPipeline);
+        shadowSkinnedPipeline = nullptr;
+    }
+
+    SDL_GPUVertexBufferDescription vbufDesc;
+    SDL_GPUVertexAttribute attrs[5];
+    FillSkinnedVertexInput(vbufDesc, attrs);
+
+    SDL_GPUGraphicsPipelineCreateInfo ci;
+    SDL_zero(ci);
+    ci.vertex_shader = shadowSkinnedVertexShader->GetHandle();
+    ci.fragment_shader = shadowFragmentShader->GetHandle();
+    ci.vertex_input_state.num_vertex_buffers = 1;
+    ci.vertex_input_state.vertex_buffer_descriptions = &vbufDesc;
+    ci.vertex_input_state.num_vertex_attributes = 5;
+    ci.vertex_input_state.vertex_attributes = attrs;
+    ci.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+
+    // Depth bias matches the rigid shadow pipeline.
+    ci.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
+    ci.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
+    ci.rasterizer_state.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
+    ci.rasterizer_state.enable_depth_bias = true;
+    ci.rasterizer_state.depth_bias_constant_factor = 4.0f;
+    ci.rasterizer_state.depth_bias_slope_factor = 4.0f;
+
+    ci.depth_stencil_state.enable_depth_test = true;
+    ci.depth_stencil_state.enable_depth_write = true;
+    ci.depth_stencil_state.compare_op = SDL_GPU_COMPAREOP_LESS_OR_EQUAL;
+
+    ci.target_info.num_color_targets = 0;
+    ci.target_info.has_depth_stencil_target = true;
+    ci.target_info.depth_stencil_format = depthFormat;
+
+    SDL_GPUGraphicsPipeline *pipeline =
+        SDL_CreateGPUGraphicsPipeline(graphicsDevice->GetDevice(), &ci);
+    if (!pipeline) {
+        spdlog::error("Failed to create shadow skinned pipeline: {}", SDL_GetError());
+        return nullptr;
+    }
+
+    shadowSkinnedPipeline = pipeline;
+    shadowSkinnedPipelineDepthFormat = depthFormat;
+    return shadowSkinnedPipeline;
 }
 
 } // namespace Lucky

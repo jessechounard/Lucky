@@ -55,6 +55,13 @@ Copyright (c) 2017.
 Licensed under Creative Commons Zero (CC0 1.0 Universal)
 https://creativecommons.org/publicdomain/zero/1.0/
 
+### CesiumMan.glb
+
+From the Khronos glTF Sample Assets, originally by Cesium and Ed Mackey.
+Copyright (c) 2017, Cesium.
+Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+
 ## Fonts
 
 ### MouseMemoirs-Regular.ttf

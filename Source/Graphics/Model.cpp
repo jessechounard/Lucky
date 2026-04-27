@@ -102,6 +102,94 @@ bool BuildPrimitiveData(const cgltf_primitive &prim, MeshData &out) {
     return true;
 }
 
+// True if the primitive carries the JOINTS_0 + WEIGHTS_0 attributes
+// that turn it into a skinned draw. We require the first set only;
+// glTF allows multiple joint sets (8+ influences per vertex), but the
+// skinned vertex shader reads exactly four influences.
+bool PrimitiveIsSkinned(const cgltf_primitive &prim) {
+    bool hasJoints = false;
+    bool hasWeights = false;
+    for (cgltf_size a = 0; a < prim.attributes_count; a++) {
+        const cgltf_attribute &attr = prim.attributes[a];
+        if (attr.type == cgltf_attribute_type_joints && attr.index == 0) {
+            hasJoints = true;
+        } else if (attr.type == cgltf_attribute_type_weights && attr.index == 0) {
+            hasWeights = true;
+        }
+    }
+    return hasJoints && hasWeights;
+}
+
+bool BuildSkinnedPrimitiveData(const cgltf_primitive &prim, SkinnedMeshData &out) {
+    const cgltf_accessor *posAccessor = nullptr;
+    const cgltf_accessor *uvAccessor = nullptr;
+    const cgltf_accessor *normalAccessor = nullptr;
+    const cgltf_accessor *jointsAccessor = nullptr;
+    const cgltf_accessor *weightsAccessor = nullptr;
+    for (cgltf_size a = 0; a < prim.attributes_count; a++) {
+        const cgltf_attribute &attr = prim.attributes[a];
+        if (attr.type == cgltf_attribute_type_position) {
+            posAccessor = attr.data;
+        } else if (attr.type == cgltf_attribute_type_texcoord && attr.index == 0) {
+            uvAccessor = attr.data;
+        } else if (attr.type == cgltf_attribute_type_normal) {
+            normalAccessor = attr.data;
+        } else if (attr.type == cgltf_attribute_type_joints && attr.index == 0) {
+            jointsAccessor = attr.data;
+        } else if (attr.type == cgltf_attribute_type_weights && attr.index == 0) {
+            weightsAccessor = attr.data;
+        }
+    }
+
+    if (!posAccessor || !prim.indices || !jointsAccessor || !weightsAccessor) {
+        return false;
+    }
+
+    const size_t vertexCount = posAccessor->count;
+    out.vertices.resize(vertexCount);
+    for (size_t i = 0; i < vertexCount; i++) {
+        float pos[3] = {0, 0, 0};
+        float uv[2] = {0, 0};
+        float nrm[3] = {0, 1, 0};
+        cgltf_uint joints[4] = {0, 0, 0, 0};
+        float weights[4] = {0, 0, 0, 0};
+        cgltf_accessor_read_float(posAccessor, i, pos, 3);
+        if (uvAccessor) {
+            cgltf_accessor_read_float(uvAccessor, i, uv, 2);
+        }
+        if (normalAccessor) {
+            cgltf_accessor_read_float(normalAccessor, i, nrm, 3);
+        }
+        cgltf_accessor_read_uint(jointsAccessor, i, joints, 4);
+        cgltf_accessor_read_float(weightsAccessor, i, weights, 4);
+
+        Vertex3DSkinned &v = out.vertices[i];
+        v.x = pos[0];
+        v.y = pos[1];
+        v.z = pos[2];
+        v.u = uv[0];
+        v.v = uv[1];
+        v.nx = nrm[0];
+        v.ny = nrm[1];
+        v.nz = nrm[2];
+        v.j0 = static_cast<uint32_t>(joints[0]);
+        v.j1 = static_cast<uint32_t>(joints[1]);
+        v.j2 = static_cast<uint32_t>(joints[2]);
+        v.j3 = static_cast<uint32_t>(joints[3]);
+        v.w0 = weights[0];
+        v.w1 = weights[1];
+        v.w2 = weights[2];
+        v.w3 = weights[3];
+    }
+
+    const size_t indexCount = prim.indices->count;
+    out.indices.resize(indexCount);
+    for (size_t i = 0; i < indexCount; i++) {
+        out.indices[i] = static_cast<uint32_t>(cgltf_accessor_read_index(prim.indices, i));
+    }
+    return true;
+}
+
 // Decode a glTF embedded image into a sampleable Lucky::Texture. Returns
 // nullptr if the image has no buffer view (external URI -- not
 // supported yet) or stb_image rejects the encoded bytes.
@@ -219,13 +307,17 @@ Model::Model(GraphicsDevice &graphicsDevice, const std::string &path) {
         materials.push_back(material);
     }
 
-    // One Lucky Mesh per primitive; remember which cgltf_mesh maps to
-    // which range so node-mesh references resolve to the correct GPU
-    // buffers, and record each primitive's material index in parallel.
+    // One Lucky Mesh / SkinnedMesh per primitive; remember which
+    // cgltf_mesh maps to which set so node-mesh references resolve to
+    // the correct GPU buffers, and record each primitive's material
+    // index in parallel.
+    struct PrimitiveMapping {
+        bool skinned;
+        int index; // into meshes if !skinned, else into skinnedMeshes
+    };
     struct MeshMapping {
         const cgltf_mesh *cgMesh;
-        int firstMeshIndex;
-        int primitiveCount;
+        std::vector<PrimitiveMapping> primitives;
     };
     std::vector<MeshMapping> meshMap;
     meshMap.reserve(data->meshes_count);
@@ -234,22 +326,57 @@ Model::Model(GraphicsDevice &graphicsDevice, const std::string &path) {
         const cgltf_mesh &cgMesh = data->meshes[m];
         MeshMapping mapping;
         mapping.cgMesh = &cgMesh;
-        mapping.firstMeshIndex = static_cast<int>(meshes.size());
-        mapping.primitiveCount = 0;
+        mapping.primitives.reserve(cgMesh.primitives_count);
 
         for (cgltf_size p = 0; p < cgMesh.primitives_count; p++) {
             const cgltf_primitive &prim = cgMesh.primitives[p];
-            MeshData meshData;
-            if (!BuildPrimitiveData(prim, meshData)) {
-                continue;
-            }
-            meshes.push_back(std::make_unique<Mesh>(graphicsDevice, meshData));
             const int matIndex =
                 prim.material ? static_cast<int>(prim.material - data->materials) : -1;
-            meshMaterialIndices.push_back(matIndex);
-            mapping.primitiveCount++;
+
+            if (PrimitiveIsSkinned(prim)) {
+                SkinnedMeshData meshData;
+                if (!BuildSkinnedPrimitiveData(prim, meshData)) {
+                    continue;
+                }
+                const int idx = static_cast<int>(skinnedMeshes.size());
+                skinnedMeshes.push_back(std::make_unique<SkinnedMesh>(graphicsDevice, meshData));
+                skinnedMeshMaterialIndices.push_back(matIndex);
+                mapping.primitives.push_back({true, idx});
+            } else {
+                MeshData meshData;
+                if (!BuildPrimitiveData(prim, meshData)) {
+                    continue;
+                }
+                const int idx = static_cast<int>(meshes.size());
+                meshes.push_back(std::make_unique<Mesh>(graphicsDevice, meshData));
+                meshMaterialIndices.push_back(matIndex);
+                mapping.primitives.push_back({false, idx});
+            }
         }
-        meshMap.push_back(mapping);
+        meshMap.push_back(std::move(mapping));
+    }
+
+    // Skins. Joint indices reference data->nodes, which is parallel to
+    // our `nodes` array, so the indices are interchangeable.
+    skins.reserve(data->skins_count);
+    for (cgltf_size s = 0; s < data->skins_count; s++) {
+        const cgltf_skin &cgSkin = data->skins[s];
+        Skin skin;
+        skin.name = cgSkin.name ? cgSkin.name : ("skin_" + std::to_string(s));
+        skin.skeletonRoot = cgSkin.skeleton ? static_cast<int>(cgSkin.skeleton - data->nodes) : -1;
+        skin.jointNodes.resize(cgSkin.joints_count);
+        for (cgltf_size j = 0; j < cgSkin.joints_count; j++) {
+            skin.jointNodes[j] = static_cast<int>(cgSkin.joints[j] - data->nodes);
+        }
+        skin.inverseBindMatrices.assign(cgSkin.joints_count, glm::mat4(1.0f));
+        if (cgSkin.inverse_bind_matrices) {
+            for (cgltf_size j = 0; j < cgSkin.joints_count; j++) {
+                float m[16];
+                cgltf_accessor_read_float(cgSkin.inverse_bind_matrices, j, m, 16);
+                skin.inverseBindMatrices[j] = glm::make_mat4(m);
+            }
+        }
+        skins.push_back(std::move(skin));
     }
 
     // Node hierarchy.
@@ -261,13 +388,17 @@ Model::Model(GraphicsDevice &graphicsDevice, const std::string &path) {
         dst.name = cgNode.name ? cgNode.name : ("node_" + std::to_string(n));
         DecomposeNodeTransform(cgNode, dst);
         dst.parentIndex = cgNode.parent ? static_cast<int>(cgNode.parent - data->nodes) : -1;
+        dst.skinIndex = cgNode.skin ? static_cast<int>(cgNode.skin - data->skins) : -1;
 
         if (cgNode.mesh) {
             for (const MeshMapping &mapping : meshMap) {
                 if (mapping.cgMesh == cgNode.mesh) {
-                    dst.meshIndices.reserve(mapping.primitiveCount);
-                    for (int j = 0; j < mapping.primitiveCount; j++) {
-                        dst.meshIndices.push_back(mapping.firstMeshIndex + j);
+                    for (const PrimitiveMapping &pm : mapping.primitives) {
+                        if (pm.skinned) {
+                            dst.skinnedMeshIndices.push_back(pm.index);
+                        } else {
+                            dst.meshIndices.push_back(pm.index);
+                        }
                     }
                     break;
                 }
@@ -343,10 +474,12 @@ Model::Model(GraphicsDevice &graphicsDevice, const std::string &path) {
         animations.push_back(std::move(anim));
     }
 
-    spdlog::info(
-        "Loaded glTF '{}': {} mesh(es), {} material(s), {} texture(s), {} node(s), {} animation(s)",
+    spdlog::info("Loaded glTF '{}': {} mesh(es), {} skinned mesh(es), {} skin(s), "
+                 "{} material(s), {} texture(s), {} node(s), {} animation(s)",
         path,
         meshes.size(),
+        skinnedMeshes.size(),
+        skins.size(),
         materials.size(),
         textures.size(),
         nodes.size(),

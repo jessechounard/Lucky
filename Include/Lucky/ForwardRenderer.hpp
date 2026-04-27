@@ -78,11 +78,27 @@ struct ForwardRenderer {
     /** Edge length of each shadow map in texels. */
     static constexpr uint32_t ShadowMapSize = 2048;
 
+    /**
+     * Maximum number of joints per skinned mesh.
+     *
+     * Sized to fit comfortably inside the 16 KB SDL_PushGPU* uniform
+     * cap (128 * 64 = 8 KB). Asset note: typical fully-rigged humans
+     * use 50-80 joints; the Khronos CesiumMan sample uses 19. A model
+     * exceeding this cap will trigger a runtime assert from the
+     * skinned draw path.
+     */
+    static constexpr int MaxJoints = 128;
+
   private:
     SDL_GPUGraphicsPipeline *GetOrCreateForwardPipeline(
         SDL_GPUTextureFormat colorFormat, SDL_GPUTextureFormat depthFormat);
 
     SDL_GPUGraphicsPipeline *GetOrCreateShadowPipeline(SDL_GPUTextureFormat depthFormat);
+
+    SDL_GPUGraphicsPipeline *GetOrCreateForwardSkinnedPipeline(
+        SDL_GPUTextureFormat colorFormat, SDL_GPUTextureFormat depthFormat);
+
+    SDL_GPUGraphicsPipeline *GetOrCreateShadowSkinnedPipeline(SDL_GPUTextureFormat depthFormat);
 
     struct ForwardPipelineKey {
         SDL_GPUTextureFormat colorFormat;
@@ -102,13 +118,19 @@ struct ForwardRenderer {
 
     std::unique_ptr<Shader> forwardVertexShader;
     std::unique_ptr<Shader> forwardFragmentShader;
+    std::unique_ptr<Shader> forwardSkinnedVertexShader;
     std::unique_ptr<Shader> shadowVertexShader;
     std::unique_ptr<Shader> shadowFragmentShader;
+    std::unique_ptr<Shader> shadowSkinnedVertexShader;
 
     std::unordered_map<ForwardPipelineKey, SDL_GPUGraphicsPipeline *, ForwardPipelineKeyHash>
         forwardPipelines;
+    std::unordered_map<ForwardPipelineKey, SDL_GPUGraphicsPipeline *, ForwardPipelineKeyHash>
+        forwardSkinnedPipelines;
     SDL_GPUGraphicsPipeline *shadowPipeline = nullptr;
     SDL_GPUTextureFormat shadowPipelineDepthFormat = SDL_GPU_TEXTUREFORMAT_INVALID;
+    SDL_GPUGraphicsPipeline *shadowSkinnedPipeline = nullptr;
+    SDL_GPUTextureFormat shadowSkinnedPipelineDepthFormat = SDL_GPU_TEXTUREFORMAT_INVALID;
 
     std::unique_ptr<Texture> shadowMaps[MaxShadowMaps];
     std::unique_ptr<Sampler> shadowSampler;

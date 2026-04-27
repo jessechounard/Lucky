@@ -8,6 +8,7 @@ namespace Lucky {
 
 struct Material;
 struct Mesh;
+struct SkinnedMesh;
 
 /**
  * Light source kinds supported by the forward renderer.
@@ -89,6 +90,30 @@ struct SceneObject {
 };
 
 /**
+ * One skinned drawable: a `SkinnedMesh` plus the joint matrix array
+ * the vertex shader will index into via the per-vertex joint indices.
+ *
+ * Unlike `SceneObject`, there is no per-object `transform`: the joint
+ * matrices already carry the model placement (each is
+ * `worldTransform[joint] * inverseBindMatrix[joint]`), and the
+ * skinned vertex shader produces world-space positions directly from
+ * them.
+ *
+ * `mesh`, `material`, and `jointMatrices` are non-owned pointers; the
+ * caller keeps all three alive for the duration of any render call
+ * that reads this object. `material == nullptr` is a valid request
+ * for a default white-dielectric-rough material; the renderer
+ * substitutes a built-in fallback. `jointMatrices` typically points
+ * into a `ModelInstance`'s internal storage.
+ */
+struct SkinnedSceneObject {
+    SkinnedMesh *mesh = nullptr;
+    Material *material = nullptr;
+    glm::vec3 color = {1.0f, 1.0f, 1.0f};
+    const std::vector<glm::mat4> *jointMatrices = nullptr;
+};
+
+/**
  * The application's per-frame view of the 3D scene.
  *
  * Holds the constant lighting environment plus the list of objects and
@@ -103,6 +128,7 @@ struct Scene3D {
     glm::vec3 ambientColor = {0.05f, 0.05f, 0.07f};
     std::vector<Light> lights;
     std::vector<SceneObject> objects;
+    std::vector<SkinnedSceneObject> skinnedObjects;
 };
 
 } // namespace Lucky

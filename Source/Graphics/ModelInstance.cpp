@@ -25,6 +25,16 @@ ModelInstance::ModelInstance(Model &model) : model(&model) {
     }
     worldTransforms.assign(count, glm::mat4(1.0f));
     playbacks.assign(model.GetAnimationCount(), AnimationPlayback{});
+
+    // Size the joint matrix storage to match the model's skins. The
+    // outer vector never resizes again, so `&skinJointMatrices[i]`
+    // remains stable for the instance's lifetime -- which lets
+    // `SkinnedSceneObject::jointMatrices` borrow it safely.
+    const int skinCount = model.GetSkinCount();
+    skinJointMatrices.resize(skinCount);
+    for (int s = 0; s < skinCount; s++) {
+        skinJointMatrices[s].assign(model.GetSkin(s).jointNodes.size(), glm::mat4(1.0f));
+    }
 }
 
 void ModelInstance::SetRootTransform(const glm::mat4 &transform) {
@@ -197,6 +207,12 @@ const std::vector<glm::mat4> &ModelInstance::GetWorldTransforms() const {
     return worldTransforms;
 }
 
+const std::vector<glm::mat4> &ModelInstance::GetSkinJointMatrices(int skinIndex) const {
+    SDL_assert(skinIndex >= 0 && skinIndex < static_cast<int>(skinJointMatrices.size()));
+    RecomputeWorldTransformsIfDirty();
+    return skinJointMatrices[skinIndex];
+}
+
 void ModelInstance::RecomputeWorldTransformsIfDirty() const {
     if (!dirty) {
         return;
@@ -225,6 +241,20 @@ void ModelInstance::RecomputeWorldTransformsIfDirty() const {
         compute(compute, i);
     }
 
+    // Refresh per-skin joint matrices alongside the world transforms.
+    // Each joint's matrix maps mesh-local space straight into world
+    // space, so the skinned vertex shader doesn't need a separate model
+    // transform.
+    const int skinCount = model->GetSkinCount();
+    for (int s = 0; s < skinCount; s++) {
+        const Skin &skin = model->GetSkin(s);
+        std::vector<glm::mat4> &out = skinJointMatrices[s];
+        const size_t jointCount = skin.jointNodes.size();
+        for (size_t j = 0; j < jointCount; j++) {
+            out[j] = worldTransforms[skin.jointNodes[j]] * skin.inverseBindMatrices[j];
+        }
+    }
+
     dirty = false;
 }
 
@@ -240,6 +270,20 @@ void ModelInstance::AppendToScene(Scene3D &scene, const glm::vec3 &colorTint) {
             obj.transform = worldTransforms[i];
             obj.color = colorTint;
             scene.objects.push_back(obj);
+        }
+        // Skinned primitives. Skip silently if the source glTF
+        // attached a skinned mesh to a node with no skin reference --
+        // that's malformed but seen in the wild.
+        if (node.skinIndex < 0) {
+            continue;
+        }
+        for (int meshIdx : node.skinnedMeshIndices) {
+            SkinnedSceneObject obj;
+            obj.mesh = &model->GetSkinnedMesh(meshIdx);
+            obj.material = model->GetMaterialForSkinnedMesh(meshIdx);
+            obj.color = colorTint;
+            obj.jointMatrices = &skinJointMatrices[node.skinIndex];
+            scene.skinnedObjects.push_back(obj);
         }
     }
 }

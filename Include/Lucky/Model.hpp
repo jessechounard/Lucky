@@ -9,6 +9,7 @@
 
 #include <Lucky/Material.hpp>
 #include <Lucky/Mesh.hpp>
+#include <Lucky/SkinnedMesh.hpp>
 
 namespace Lucky {
 
@@ -24,9 +25,14 @@ struct Texture;
  * glTF and the indices of any meshes attached to the node. `parentIndex`
  * is the index of the parent in `Model::GetNodes()`, or `-1` for roots.
  *
- * `meshIndices` references entries in `Model::GetMesh()`. A glTF mesh
- * with multiple primitives produces one Lucky `Mesh` per primitive, so
- * a single node may reference several mesh indices.
+ * `meshIndices` references entries in `Model::GetMesh()` (rigid
+ * primitives). `skinnedMeshIndices` references entries in
+ * `Model::GetSkinnedMesh()` (primitives with `JOINTS_0` / `WEIGHTS_0`).
+ * A single glTF mesh may produce a mix of both. Each list is in source
+ * primitive order.
+ *
+ * `skinIndex` names the `Skin` that supplies joint matrices for this
+ * node's skinned meshes, or `-1` if the node has no skin attached.
  *
  * NodeTemplate is the data side of a model: shared across all instances.
  * Per-instance animated transforms live on `ModelInstance`.
@@ -38,6 +44,8 @@ struct NodeTemplate {
     glm::vec3 restScale = {1.0f, 1.0f, 1.0f};
     int parentIndex = -1;
     std::vector<int> meshIndices;
+    std::vector<int> skinnedMeshIndices;
+    int skinIndex = -1;
 };
 
 /**
@@ -102,6 +110,28 @@ struct AnimationDef {
 };
 
 /**
+ * A glTF skin: an ordered list of joint nodes plus their inverse bind
+ * matrices. A skinned mesh transforms each vertex by a weighted sum of
+ * `jointWorld[j] * inverseBindMatrices[j]` for the four joints listed
+ * in the vertex's `Vertex3DSkinned::j0..j3`.
+ *
+ * `jointNodes[j]` is the index of joint `j` in `Model::GetNode()`.
+ * Vertex joint indices reference this array, NOT the node array
+ * directly: a Skin's joint 0 is whichever node `jointNodes[0]` names.
+ *
+ * `skeletonRoot` is the optional `skeleton` node from glTF; `-1` if
+ * unset. The renderer doesn't require it -- joint world transforms are
+ * computed from the full node hierarchy regardless -- but it can be
+ * useful as an "isolated armature" anchor for tooling.
+ */
+struct Skin {
+    std::string name;
+    std::vector<int> jointNodes;
+    std::vector<glm::mat4> inverseBindMatrices;
+    int skeletonRoot = -1;
+};
+
+/**
  * A glTF / GLB model loaded into GPU buffers.
  *
  * Loads geometry and the node hierarchy from a `.glb` or `.gltf` file
@@ -120,17 +150,21 @@ struct AnimationDef {
  *   sampler per model. Materials with external (URI) textures are
  *   loaded with no texture; only embedded buffer-view images are
  *   decoded today.
- * - Animations (rigid node TRS only). Translation, Rotation, and
- *   Scale channels with `Step` and `Linear` interpolation. Skinned /
- *   skeletal animations require a separate vertex-shader path and are
- *   not yet supported.
+ * - Animations (rigid node TRS). Translation, Rotation, and Scale
+ *   channels with `Step` and `Linear` interpolation. Combine with skins
+ *   (below) to drive skeletal animation; the joint nodes are animated
+ *   the same way any other node is.
+ * - Skins. Each glTF skin produces a `Skin` listing joint nodes and
+ *   inverse bind matrices. Primitives with `JOINTS_0` / `WEIGHTS_0`
+ *   attributes load as `SkinnedMesh` instead of `Mesh`. The node
+ *   referencing such a primitive carries `skinIndex` to select which
+ *   skin supplies its joint matrices.
  *
  * # What's not loaded yet
  *
- * Embedded cameras, lights, skinning data, and non-PBR material
- * extensions (specular-glossiness, clearcoat, etc.). External-URI
- * textures are skipped. These will land alongside the matching
- * consumers.
+ * Embedded cameras, lights, and non-PBR material extensions
+ * (specular-glossiness, clearcoat, etc.). External-URI textures are
+ * skipped. These will land alongside the matching consumers.
  *
  * # Lifetime
  *
@@ -175,6 +209,35 @@ struct Model {
 
     const Mesh &GetMesh(int index) const {
         return *meshes[index];
+    }
+
+    /**
+     * Number of `SkinnedMesh` objects produced from the source glTF.
+     *
+     * Equal to the count of primitives with `JOINTS_0` / `WEIGHTS_0`
+     * across all glTF meshes. Zero for assets that ship no skinning.
+     */
+    int GetSkinnedMeshCount() const {
+        return static_cast<int>(skinnedMeshes.size());
+    }
+
+    /** Returns the `SkinnedMesh` at the given index. */
+    SkinnedMesh &GetSkinnedMesh(int index) {
+        return *skinnedMeshes[index];
+    }
+
+    const SkinnedMesh &GetSkinnedMesh(int index) const {
+        return *skinnedMeshes[index];
+    }
+
+    /** Number of skins loaded from the source glTF. */
+    int GetSkinCount() const {
+        return static_cast<int>(skins.size());
+    }
+
+    /** Returns the skin at the given index. */
+    const Skin &GetSkin(int index) const {
+        return skins[index];
     }
 
     /** Number of nodes in the model's hierarchy. */
@@ -226,6 +289,15 @@ struct Model {
     }
 
     /**
+     * Returns the material associated with the given skinned mesh, or
+     * nullptr if the source glTF primitive had no material binding.
+     */
+    Material *GetMaterialForSkinnedMesh(int skinnedMeshIndex) {
+        const int matIdx = skinnedMeshMaterialIndices[skinnedMeshIndex];
+        return (matIdx >= 0) ? &materials[matIdx] : nullptr;
+    }
+
+    /**
      * Computes world-space transforms for every node from its rest pose.
      *
      * Output is sized to `GetNodeCount()`. `rootTransform` is left-
@@ -253,11 +325,14 @@ struct Model {
   private:
     std::vector<std::unique_ptr<Mesh>> meshes;
     std::vector<int> meshMaterialIndices; // parallel to meshes; -1 = no material
+    std::vector<std::unique_ptr<SkinnedMesh>> skinnedMeshes;
+    std::vector<int> skinnedMeshMaterialIndices; // parallel to skinnedMeshes; -1 = no material
     std::vector<NodeTemplate> nodes;
     std::vector<Material> materials;
     std::vector<std::unique_ptr<Texture>> textures;
     std::unique_ptr<Sampler> materialSampler;
     std::vector<AnimationDef> animations;
+    std::vector<Skin> skins;
 };
 
 } // namespace Lucky

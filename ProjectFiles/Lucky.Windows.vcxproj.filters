@@ -75,6 +75,9 @@
     <ClCompile Include="..\Source\Graphics\ShapeRenderer.cpp">
       <Filter>Source\Graphics</Filter>
     </ClCompile>
+    <ClCompile Include="..\Source\Graphics\SkinnedMesh.cpp">
+      <Filter>Source\Graphics</Filter>
+    </ClCompile>
     <ClCompile Include="..\Source\Graphics\SlugFont.cpp">
       <Filter>Source\Graphics</Filter>
     </ClCompile>
@@ -209,6 +212,9 @@
     <ClInclude Include="..\Include\Lucky\ShapeRenderer.hpp">
       <Filter>Include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Include\Lucky\SkinnedMesh.hpp">
+      <Filter>Include</Filter>
+    </ClInclude>
     <ClInclude Include="..\Include\Lucky\SlugFont.hpp">
       <Filter>Include</Filter>
     </ClInclude>
@@ -252,6 +258,9 @@
     <CustomBuild Include="..\Shaders\forward.vert.hlsl">
       <Filter>Shaders</Filter>
     </CustomBuild>
+    <CustomBuild Include="..\Shaders\forward_skinned.vert.hlsl">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
     <CustomBuild Include="..\Shaders\msdf_text.frag.hlsl">
       <Filter>Shaders</Filter>
     </CustomBuild>
@@ -268,6 +277,9 @@
       <Filter>Shaders</Filter>
     </CustomBuild>
     <CustomBuild Include="..\Shaders\shadow_depth.vert.hlsl">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\Shaders\shadow_depth_skinned.vert.hlsl">
       <Filter>Shaders</Filter>
     </CustomBuild>
     <CustomBuild Include="..\Shaders\sdf_outline.frag.hlsl">
