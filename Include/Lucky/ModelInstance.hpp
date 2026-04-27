@@ -11,6 +11,57 @@ struct Model;
 struct Scene3D;
 
 /**
+ * A snapshot of every node's TRS at one moment in time.
+ *
+ * Used to sample an animation (or build a static authored pose)
+ * without mutating a `ModelInstance`, blend multiple poses by
+ * weight, then push the result back to an instance via
+ * `ModelInstance::SetPose`. This is the seam for pose-based
+ * procedural animation: author N reference poses, blend them by
+ * gameplay-driven weights, write the result.
+ *
+ * Each array has one entry per node in the source `Model`. Index
+ * `i` corresponds to `Model::GetNode(i)`.
+ */
+struct AnimationPose {
+    std::vector<glm::vec3> translations;
+    std::vector<glm::quat> rotations;
+    std::vector<glm::vec3> scales;
+};
+
+/**
+ * Fills `out` with each node's rest TRS from `model`. Resizes the
+ * arrays to match the model's node count. Useful as a starting
+ * point for a pose that you then partially overwrite, or as one of
+ * the operands to `BlendPoses` for a "fade to rest" effect.
+ */
+void MakeRestPose(const Model &model, AnimationPose &out);
+
+/**
+ * Samples animation `animationIndex` of `model` at `time` (seconds
+ * since animation start) into `out`. Nodes not driven by any
+ * channel of the animation get their rest TRS. Resizes the arrays
+ * to match the model's node count.
+ *
+ * Time outside the animation's keyframe range clamps to the first
+ * or last keyframe -- mirror the looping behavior of
+ * `ModelInstance::Update` yourself by `fmod`-ing the time before
+ * passing it in.
+ *
+ * Asserts on an out-of-range animation index.
+ */
+void SampleAnimationPose(const Model &model, int animationIndex, float time, AnimationPose &out);
+
+/**
+ * Linearly blends two same-sized poses into `out`. `weight` of 0
+ * returns `a`; 1 returns `b`. Translation and scale use component-
+ * wise LERP; rotation uses SLERP. `out` may alias `a` or `b`.
+ *
+ * Asserts that `a` and `b` have the same node count.
+ */
+void BlendPoses(const AnimationPose &a, const AnimationPose &b, float weight, AnimationPose &out);
+
+/**
  * Per-instance playback state for one of the bound `Model`'s
  * animations.
  *
@@ -76,6 +127,19 @@ struct ModelInstance {
      * separately if you want a full reset.
      */
     void ResetToRestPose();
+
+    /**
+     * Overwrites the instance's per-node TRS with the given pose.
+     * The pose's node count must match the bound model's node
+     * count. Marks the world-transform cache dirty.
+     *
+     * Use this with `SampleAnimationPose` and `BlendPoses` to drive
+     * the instance from blended pose data instead of (or alongside)
+     * the time-driven `Update` path. After `SetPose`, the next
+     * `Update` will overwrite any channels its playing animations
+     * touch -- typically you call one or the other, not both.
+     */
+    void SetPose(const AnimationPose &pose);
 
     /**
      * Starts playback of one of the bound Model's animations.

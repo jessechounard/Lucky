@@ -62,6 +62,16 @@ void ModelInstance::ResetToRestPose() {
     dirty = true;
 }
 
+void ModelInstance::SetPose(const AnimationPose &pose) {
+    SDL_assert(pose.translations.size() == translations.size());
+    SDL_assert(pose.rotations.size() == rotations.size());
+    SDL_assert(pose.scales.size() == scales.size());
+    translations = pose.translations;
+    rotations = pose.rotations;
+    scales = pose.scales;
+    dirty = true;
+}
+
 void ModelInstance::PlayAnimation(int index, bool loop) {
     if (index < 0 || index >= static_cast<int>(playbacks.size())) {
         return;
@@ -170,6 +180,44 @@ bool SampleChannel(const AnimationChannel &channel, float t, std::vector<glm::ve
 }
 
 } // namespace
+
+void MakeRestPose(const Model &model, AnimationPose &out) {
+    const int count = model.GetNodeCount();
+    out.translations.resize(count);
+    out.rotations.resize(count);
+    out.scales.resize(count);
+    for (int i = 0; i < count; i++) {
+        const NodeTemplate &node = model.GetNode(i);
+        out.translations[i] = node.restTranslation;
+        out.rotations[i] = node.restRotation;
+        out.scales[i] = node.restScale;
+    }
+}
+
+void SampleAnimationPose(const Model &model, int animationIndex, float time, AnimationPose &out) {
+    SDL_assert(animationIndex >= 0 && animationIndex < model.GetAnimationCount());
+    MakeRestPose(model, out);
+    const AnimationDef &anim = model.GetAnimation(animationIndex);
+    for (const AnimationChannel &channel : anim.channels) {
+        SampleChannel(channel, time, out.translations, out.rotations, out.scales);
+    }
+}
+
+void BlendPoses(const AnimationPose &a, const AnimationPose &b, float weight, AnimationPose &out) {
+    SDL_assert(a.translations.size() == b.translations.size());
+    SDL_assert(a.rotations.size() == b.rotations.size());
+    SDL_assert(a.scales.size() == b.scales.size());
+
+    const size_t count = a.translations.size();
+    out.translations.resize(count);
+    out.rotations.resize(count);
+    out.scales.resize(count);
+    for (size_t i = 0; i < count; i++) {
+        out.translations[i] = glm::mix(a.translations[i], b.translations[i], weight);
+        out.rotations[i] = glm::slerp(a.rotations[i], b.rotations[i], weight);
+        out.scales[i] = glm::mix(a.scales[i], b.scales[i], weight);
+    }
+}
 
 void ModelInstance::Update(float deltaTime) {
     bool any = false;
