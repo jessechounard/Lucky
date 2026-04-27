@@ -32,27 +32,38 @@ cbuffer MaterialUBO : register(b1, space3) {
     float  RoughnessFactor;
     int    HasBaseColorTexture;
     int    HasMetallicRoughnessTexture;
-    float  _matPad;
+    int    HasEmissiveTexture;
 };
 
+// SDL_shadercross classifies each texture+sampler PAIR as a "sampler"
+// binding and any unpaired textures as "storage_textures". To get all
+// six textures into the SDL_BindGPUFragmentSamplers path, every
+// texture needs its own SamplerState declaration -- even though we
+// bind the same Lucky::Sampler instance to all four shadow slots.
 Texture2D    BaseColorTexture          : register(t0, space2);
 Texture2D    MetallicRoughnessTexture  : register(t1, space2);
-Texture2D<float> ShadowMap0            : register(t2, space2);
-Texture2D<float> ShadowMap1            : register(t3, space2);
-Texture2D<float> ShadowMap2            : register(t4, space2);
-Texture2D<float> ShadowMap3            : register(t5, space2);
+Texture2D    ShadowMap0                : register(t2, space2);
+Texture2D    ShadowMap1                : register(t3, space2);
+Texture2D    ShadowMap2                : register(t4, space2);
+Texture2D    ShadowMap3                : register(t5, space2);
+Texture2D    EmissiveTexture           : register(t6, space2);
 
 SamplerState BaseColorSampler          : register(s0, space2);
 SamplerState MetallicRoughnessSampler  : register(s1, space2);
-SamplerState ShadowSampler             : register(s2, space2); // shared by shadow maps
+SamplerState ShadowSampler0            : register(s2, space2);
+SamplerState ShadowSampler1            : register(s3, space2);
+SamplerState ShadowSampler2            : register(s4, space2);
+SamplerState ShadowSampler3            : register(s5, space2);
+SamplerState EmissiveSampler           : register(s6, space2);
 
 static const float PI = 3.14159265359;
 
 float SampleShadowMap(int index, float2 uv) {
-    if (index == 0) return ShadowMap0.Sample(ShadowSampler, uv);
-    if (index == 1) return ShadowMap1.Sample(ShadowSampler, uv);
-    if (index == 2) return ShadowMap2.Sample(ShadowSampler, uv);
-    return ShadowMap3.Sample(ShadowSampler, uv);
+    // Sample .r channel: depth maps store depth in red.
+    if (index == 0) return ShadowMap0.Sample(ShadowSampler0, uv).r;
+    if (index == 1) return ShadowMap1.Sample(ShadowSampler1, uv).r;
+    if (index == 2) return ShadowMap2.Sample(ShadowSampler2, uv).r;
+    return ShadowMap3.Sample(ShadowSampler3, uv).r;
 }
 
 float ComputeShadow(int shadowIndex, float3 worldPos, float3 N, float3 L) {
@@ -128,6 +139,13 @@ struct PSOutput {
 PSOutput main(PSInput input) {
     // Sample material textures (1x1 white fallback if the flag is off).
     float4 baseColorSample = BaseColorTexture.Sample(BaseColorSampler, input.TexCoord);
+    // glTF base-color textures are encoded in sRGB. Lucky's Texture
+    // loads them as linear UNORM, so we decode in-shader. 2.2 is the
+    // sRGB approximation -- a piecewise sRGB curve is more accurate
+    // but the visual difference is small. The proper fix is a
+    // TextureFormat::sRGB that lets the GPU do this in hardware.
+    baseColorSample.rgb = pow(baseColorSample.rgb, 2.2);
+
     float4 baseColor = BaseColorFactor;
     if (HasBaseColorTexture != 0) {
         baseColor *= baseColorSample;
@@ -142,12 +160,15 @@ PSOutput main(PSInput input) {
         metallic *= mrSample.b;
         roughness *= mrSample.g;
     }
-    // Roughness floor of 0.1 caps the GGX peak height to prevent
-    // specular fireflies (single-pixel bright flashes) on near-mirror
-    // surfaces. More aggressive than typical (production engines often
-    // use 0.045-0.08) but with no IBL or specular-antialiasing in
-    // place, lower values flicker visibly as geometry rotates.
-    roughness = clamp(roughness, 0.1, 1.0);
+    // Roughness floor of 0.5 with non-IBL rendering. Production
+    // engines with image-based lighting clamp at 0.045-0.08 because
+    // IBL prefiltering localizes the specular peak. With only
+    // analytical lights, low roughness produces broad bright
+    // highlights that whitewash surfaces (e.g. BoomBox packs
+    // roughness=0 for its body, expecting IBL). Half-rough is the
+    // smallest floor that keeps mirror-authored materials looking
+    // like dark plastic instead of overexposed white.
+    roughness = clamp(roughness, 0.5, 1.0);
 
     // PBR setup: F0 lerps between dielectric (0.04) and full metal (base color).
     float3 N = normalize(input.Normal);
@@ -190,11 +211,7 @@ PSOutput main(PSInput input) {
         float3 F = F_Schlick(VdotH, F0);
 
         float3 specular = (D * G * F) / max(4.0 * NdotV * NdotL, 1e-4);
-        // Cap per-light specular to prevent fireflies on grazing or
-        // near-mirror surfaces. Energy conservation isn't perfect at
-        // these angles without IBL or temporal filtering; this is the
-        // pragmatic real-time fix.
-        specular = min(specular, float3(16.0, 16.0, 16.0));
+        specular = min(specular, float3(1.0, 1.0, 1.0));
 
         float3 kd = (1.0 - F) * (1.0 - metallic);
         // Lambert without the energy-normalizing /PI -- production
@@ -210,10 +227,25 @@ PSOutput main(PSInput input) {
         lighting += (diffuse + specular) * Lights[i].Color * attenuation * NdotL * shadow;
     }
 
-    lighting += EmissiveFactor;
+    // Emissive: factor * (texture if present, else 1). The texture is
+    // sRGB-encoded so we decode like base color.
+    float3 emissive = EmissiveFactor;
+    if (HasEmissiveTexture != 0) {
+        float3 emissiveSample = EmissiveTexture.Sample(EmissiveSampler, input.TexCoord).rgb;
+        emissive *= pow(emissiveSample, 2.2);
+    }
+    lighting += emissive;
 
     // Tonemap-ish exposure compression to keep bright accumulations in [0,1].
     float3 mapped = 1.0 - exp(-lighting * 0.6);
+
+    // Encode linear lighting result back to sRGB for the linear UNORM
+    // swapchain (B8G8R8A8_UNORM on this device). The OS interprets
+    // those bytes as sRGB-encoded for display, so without this encode
+    // the image displays ~2x too dark and desaturated. If the swapchain
+    // were a `_UNORM_SRGB` format the hardware would do this for us
+    // and this line should be removed.
+    mapped = pow(mapped, 1.0 / 2.2);
 
     PSOutput o;
     o.Color = float4(mapped, baseColor.a);

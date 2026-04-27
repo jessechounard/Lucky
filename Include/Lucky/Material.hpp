@@ -42,6 +42,7 @@ struct Material {
 
     Texture *baseColorTexture = nullptr;
     Texture *metallicRoughnessTexture = nullptr;
+    Texture *emissiveTexture = nullptr;
     Sampler *sampler = nullptr;
 };
 

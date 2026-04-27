@@ -41,7 +41,7 @@ struct MaterialUBO {
     float roughnessFactor;
     int hasBaseColorTexture;
     int hasMetallicRoughnessTexture;
-    float pad;
+    int hasEmissiveTexture;
 };
 static_assert(sizeof(MaterialUBO) == 48, "MaterialUBO must match HLSL cbuffer layout");
 
@@ -187,11 +187,11 @@ ForwardRenderer::ForwardRenderer(GraphicsDevice &graphicsDevice) : graphicsDevic
     shadowSampDesc.addressW = SamplerAddressMode::ClampToEdge;
     shadowSampler = std::make_unique<Sampler>(graphicsDevice, shadowSampDesc);
 
-    // 1x1 white texture: bound whenever a material doesn't supply its
-    // own base-color or metallic-roughness texture. The
+    // 1x1 white fallback, bound whenever a material doesn't supply
+    // its own base-color or metallic-roughness texture. The
     // texture-presence flags in the MaterialUBO tell the shader to
-    // ignore the sampled value in those cases, so the actual content
-    // here only matters as a sentinel.
+    // ignore the sampled value in those cases, so the content only
+    // matters as a sentinel.
     uint8_t whitePixel[4] = {255, 255, 255, 255};
     whiteTexture = std::make_unique<Texture>(graphicsDevice,
         TextureType::Default,
@@ -291,17 +291,6 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
 
     SDL_BindGPUGraphicsPipeline(renderPass, forwardPipeline);
 
-    // Bind shadow maps + sampler at slots 2..5 once per frame; the
-    // material's per-object textures occupy slots 0..1 and get rebound
-    // inside the draw loop. Slot ranges don't clobber each other.
-    SDL_GPUTextureSamplerBinding shadowBindings[MaxShadowMaps];
-    for (int i = 0; i < MaxShadowMaps; i++) {
-        SDL_zero(shadowBindings[i]);
-        shadowBindings[i].texture = shadowMaps[i]->GetGPUTexture();
-        shadowBindings[i].sampler = shadowSampler->GetSampler();
-    }
-    SDL_BindGPUFragmentSamplers(renderPass, 2, shadowBindings, MaxShadowMaps);
-
     const float aspect = static_cast<float>(graphicsDevice->GetScreenWidth()) /
                          static_cast<float>(graphicsDevice->GetScreenHeight());
     const glm::mat4 viewProj = camera.GetProjectionMatrix(aspect) * camera.GetViewMatrix();
@@ -333,22 +322,38 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
         matUbo.roughnessFactor = mat->roughnessFactor;
         matUbo.hasBaseColorTexture = mat->baseColorTexture ? 1 : 0;
         matUbo.hasMetallicRoughnessTexture = mat->metallicRoughnessTexture ? 1 : 0;
-        matUbo.pad = 0.0f;
+        matUbo.hasEmissiveTexture = mat->emissiveTexture ? 1 : 0;
         SDL_PushGPUFragmentUniformData(cmd, 1, &matUbo, sizeof(matUbo));
 
         SDL_GPUSampler *matSampler = (mat->sampler ? mat->sampler->GetSampler() : defaultSampler);
+        SDL_GPUSampler *shadowSamp = shadowSampler->GetSampler();
 
-        SDL_GPUTextureSamplerBinding matBindings[2];
-        SDL_zero(matBindings[0]);
-        matBindings[0].texture =
+        // Bind all seven fragment texture+sampler pairs in one call.
+        // Splitting these into separate range binds (e.g. material per
+        // object + shadows per frame) doesn't actually rebind on D3D12;
+        // each draw needs the complete set together. Slots 0..1 are
+        // material textures (base color, metallic-roughness); 2..5 are
+        // the four shadow maps; 6 is the emissive texture.
+        SDL_GPUTextureSamplerBinding bindings[3 + MaxShadowMaps];
+        SDL_zero(bindings[0]);
+        bindings[0].texture =
             mat->baseColorTexture ? mat->baseColorTexture->GetGPUTexture() : whiteGpuTex;
-        matBindings[0].sampler = matSampler;
-        SDL_zero(matBindings[1]);
-        matBindings[1].texture = mat->metallicRoughnessTexture
-                                     ? mat->metallicRoughnessTexture->GetGPUTexture()
-                                     : whiteGpuTex;
-        matBindings[1].sampler = matSampler;
-        SDL_BindGPUFragmentSamplers(renderPass, 0, matBindings, 2);
+        bindings[0].sampler = matSampler;
+        SDL_zero(bindings[1]);
+        bindings[1].texture = mat->metallicRoughnessTexture
+                                  ? mat->metallicRoughnessTexture->GetGPUTexture()
+                                  : whiteGpuTex;
+        bindings[1].sampler = matSampler;
+        for (int i = 0; i < MaxShadowMaps; i++) {
+            SDL_zero(bindings[2 + i]);
+            bindings[2 + i].texture = shadowMaps[i]->GetGPUTexture();
+            bindings[2 + i].sampler = shadowSamp;
+        }
+        SDL_zero(bindings[2 + MaxShadowMaps]);
+        bindings[2 + MaxShadowMaps].texture =
+            mat->emissiveTexture ? mat->emissiveTexture->GetGPUTexture() : whiteGpuTex;
+        bindings[2 + MaxShadowMaps].sampler = matSampler;
+        SDL_BindGPUFragmentSamplers(renderPass, 0, bindings, 3 + MaxShadowMaps);
 
         ObjectUBO ubo;
         ubo.model = object.transform;

@@ -202,8 +202,20 @@ Model::Model(GraphicsDevice &graphicsDevice, const std::string &path) {
             }
         }
 
-        material.emissiveFactor =
-            glm::vec3(mat.emissive_factor[0], mat.emissive_factor[1], mat.emissive_factor[2]);
+        // glTF semantics: emissive_factor is multiplied by the
+        // emissive_texture sample. The shader handles the multiply;
+        // we just pass both through. (Without the texture, the
+        // factor IS the emission for the whole surface -- typically
+        // (0,0,0) unless the asset wants uniform glow.)
+        material.emissiveFactor = glm::vec3(
+            mat.emissive_factor[0], mat.emissive_factor[1], mat.emissive_factor[2]);
+        if (mat.emissive_texture.texture && mat.emissive_texture.texture->image) {
+            const int idx =
+                static_cast<int>(mat.emissive_texture.texture->image - data->images);
+            if (idx >= 0 && idx < static_cast<int>(textures.size())) {
+                material.emissiveTexture = textures[idx].get();
+            }
+        }
 
         materials.push_back(material);
     }
