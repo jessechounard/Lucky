@@ -39,10 +39,17 @@ struct Material {
     float metallicFactor = 0.0f;
     float roughnessFactor = 0.5f;
     glm::vec3 emissiveFactor = {0.0f, 0.0f, 0.0f};
+    // Per glTF: scale applied to the xy components of the unpacked
+    // tangent-space normal sample before perturbing N. 1 = the texture
+    // says exactly what it says; >1 exaggerates surface detail; 0
+    // disables the perturbation while still consuming the tangent
+    // input. Only consulted when `normalTexture` is non-null.
+    float normalScale = 1.0f;
 
     Texture *baseColorTexture = nullptr;
     Texture *metallicRoughnessTexture = nullptr;
     Texture *emissiveTexture = nullptr;
+    Texture *normalTexture = nullptr;
     Sampler *sampler = nullptr;
 };
 

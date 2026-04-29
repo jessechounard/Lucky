@@ -250,6 +250,13 @@ struct Model {
         return nodes[index];
     }
 
+    /**
+     * Looks up a node by name. Returns -1 if no node in the model
+     * matches. Useful for resolving rig-specific joints (e.g.,
+     * "Skeleton_arm_L_wrist") without hardcoding node indices.
+     */
+    int FindNode(const std::string &name) const;
+
     /** Number of animations loaded from the source glTF. */
     int GetAnimationCount() const {
         return static_cast<int>(animations.size());

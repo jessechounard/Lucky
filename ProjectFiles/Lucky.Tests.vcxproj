@@ -56,7 +56,7 @@
     <OutDir>$(ProjectDir)..\Build\Output\$(Configuration)\</OutDir>
     <IntDir>$(ProjectDir)..\Build\Intermediate\$(ProjectName)\$(Configuration)\</IntDir>
     <TargetName>Lucky.Tests</TargetName>
-    <IncludePath>$(ProjectDir)..\Include;$(ProjectDir)..\Dependencies;$(ProjectDir)..\Dependencies\doctest;$(ProjectDir)..\Dependencies\glm;$(ProjectDir)..\Dependencies\SDL\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)..\Include;$(ProjectDir)..\Dependencies;$(ProjectDir)..\Dependencies\doctest;$(ProjectDir)..\Dependencies\glm;$(ProjectDir)..\Dependencies\cgltf;$(ProjectDir)..\Dependencies\SDL\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug ASan|x64'">
     <ClCompile>
@@ -126,6 +126,7 @@ xcopy /Y /E /I /Q /EXCLUDE:$(ProjectDir)..\Tests\Fixtures\xcopy-exclude.txt "$(P
     <ClCompile Include="..\Tests\Graphics\ColorTests.cpp" />
     <ClCompile Include="..\Tests\Graphics\IndexBufferTests.cpp" />
     <ClCompile Include="..\Tests\Graphics\MeshTests.cpp" />
+    <ClCompile Include="..\Tests\Graphics\ModelTangentTests.cpp" />
     <ClCompile Include="..\Tests\Graphics\ShapeRendererTests.cpp" />
     <ClCompile Include="..\Tests\Graphics\SpriteAnimationTests.cpp" />
     <ClCompile Include="..\Tests\Graphics\TextureAtlasTests.cpp" />

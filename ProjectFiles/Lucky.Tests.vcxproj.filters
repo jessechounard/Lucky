@@ -26,6 +26,9 @@
     <ClCompile Include="..\Tests\Graphics\MeshTests.cpp">
       <Filter>Graphics</Filter>
     </ClCompile>
+    <ClCompile Include="..\Tests\Graphics\ModelTangentTests.cpp">
+      <Filter>Graphics</Filter>
+    </ClCompile>
     <ClCompile Include="..\Tests\Graphics\TextureTests.cpp">
       <Filter>Graphics</Filter>
     </ClCompile>

@@ -55,6 +55,7 @@ bool BuildPrimitiveData(const cgltf_primitive &prim, MeshData &out) {
     const cgltf_accessor *posAccessor = nullptr;
     const cgltf_accessor *uvAccessor = nullptr;
     const cgltf_accessor *normalAccessor = nullptr;
+    const cgltf_accessor *tangentAccessor = nullptr;
     for (cgltf_size a = 0; a < prim.attributes_count; a++) {
         const cgltf_attribute &attr = prim.attributes[a];
         if (attr.type == cgltf_attribute_type_position) {
@@ -63,6 +64,8 @@ bool BuildPrimitiveData(const cgltf_primitive &prim, MeshData &out) {
             uvAccessor = attr.data;
         } else if (attr.type == cgltf_attribute_type_normal) {
             normalAccessor = attr.data;
+        } else if (attr.type == cgltf_attribute_type_tangent) {
+            tangentAccessor = attr.data;
         }
     }
 
@@ -76,12 +79,20 @@ bool BuildPrimitiveData(const cgltf_primitive &prim, MeshData &out) {
         float pos[3] = {0, 0, 0};
         float uv[2] = {0, 0};
         float nrm[3] = {0, 1, 0};
+        // Tangent absent -> zero. The forward shader's HasNormalTexture
+        // flag gates the read, so an unread zero is harmless. If a model
+        // ever ships a normal-mapped material without TANGENT, MikkTSpace
+        // generation would land here.
+        float tan[4] = {0, 0, 0, 0};
         cgltf_accessor_read_float(posAccessor, i, pos, 3);
         if (uvAccessor) {
             cgltf_accessor_read_float(uvAccessor, i, uv, 2);
         }
         if (normalAccessor) {
             cgltf_accessor_read_float(normalAccessor, i, nrm, 3);
+        }
+        if (tangentAccessor) {
+            cgltf_accessor_read_float(tangentAccessor, i, tan, 4);
         }
         Vertex3D &v = out.vertices[i];
         v.x = pos[0];
@@ -92,6 +103,10 @@ bool BuildPrimitiveData(const cgltf_primitive &prim, MeshData &out) {
         v.nx = nrm[0];
         v.ny = nrm[1];
         v.nz = nrm[2];
+        v.tx = tan[0];
+        v.ty = tan[1];
+        v.tz = tan[2];
+        v.tw = tan[3];
     }
 
     const size_t indexCount = prim.indices->count;
@@ -124,6 +139,7 @@ bool BuildSkinnedPrimitiveData(const cgltf_primitive &prim, SkinnedMeshData &out
     const cgltf_accessor *posAccessor = nullptr;
     const cgltf_accessor *uvAccessor = nullptr;
     const cgltf_accessor *normalAccessor = nullptr;
+    const cgltf_accessor *tangentAccessor = nullptr;
     const cgltf_accessor *jointsAccessor = nullptr;
     const cgltf_accessor *weightsAccessor = nullptr;
     for (cgltf_size a = 0; a < prim.attributes_count; a++) {
@@ -134,6 +150,8 @@ bool BuildSkinnedPrimitiveData(const cgltf_primitive &prim, SkinnedMeshData &out
             uvAccessor = attr.data;
         } else if (attr.type == cgltf_attribute_type_normal) {
             normalAccessor = attr.data;
+        } else if (attr.type == cgltf_attribute_type_tangent) {
+            tangentAccessor = attr.data;
         } else if (attr.type == cgltf_attribute_type_joints && attr.index == 0) {
             jointsAccessor = attr.data;
         } else if (attr.type == cgltf_attribute_type_weights && attr.index == 0) {
@@ -151,6 +169,7 @@ bool BuildSkinnedPrimitiveData(const cgltf_primitive &prim, SkinnedMeshData &out
         float pos[3] = {0, 0, 0};
         float uv[2] = {0, 0};
         float nrm[3] = {0, 1, 0};
+        float tan[4] = {0, 0, 0, 0};
         cgltf_uint joints[4] = {0, 0, 0, 0};
         float weights[4] = {0, 0, 0, 0};
         cgltf_accessor_read_float(posAccessor, i, pos, 3);
@@ -159,6 +178,9 @@ bool BuildSkinnedPrimitiveData(const cgltf_primitive &prim, SkinnedMeshData &out
         }
         if (normalAccessor) {
             cgltf_accessor_read_float(normalAccessor, i, nrm, 3);
+        }
+        if (tangentAccessor) {
+            cgltf_accessor_read_float(tangentAccessor, i, tan, 4);
         }
         cgltf_accessor_read_uint(jointsAccessor, i, joints, 4);
         cgltf_accessor_read_float(weightsAccessor, i, weights, 4);
@@ -180,6 +202,10 @@ bool BuildSkinnedPrimitiveData(const cgltf_primitive &prim, SkinnedMeshData &out
         v.w1 = weights[1];
         v.w2 = weights[2];
         v.w3 = weights[3];
+        v.tx = tan[0];
+        v.ty = tan[1];
+        v.tz = tan[2];
+        v.tw = tan[3];
     }
 
     const size_t indexCount = prim.indices->count;
@@ -301,6 +327,17 @@ Model::Model(GraphicsDevice &graphicsDevice, const std::string &path) {
             const int idx = static_cast<int>(mat.emissive_texture.texture->image - data->images);
             if (idx >= 0 && idx < static_cast<int>(textures.size())) {
                 material.emissiveTexture = textures[idx].get();
+            }
+        }
+
+        // Normal map. glTF stores the per-texel scale in
+        // normal_texture.scale (default 1); the shader applies it to
+        // the xy components of the unpacked normal before perturbing N.
+        if (mat.normal_texture.texture && mat.normal_texture.texture->image) {
+            const int idx = static_cast<int>(mat.normal_texture.texture->image - data->images);
+            if (idx >= 0 && idx < static_cast<int>(textures.size())) {
+                material.normalTexture = textures[idx].get();
+                material.normalScale = mat.normal_texture.scale;
             }
         }
 
@@ -491,6 +528,15 @@ Model::~Model() = default;
 int Model::FindAnimation(const std::string &name) const {
     for (size_t i = 0; i < animations.size(); i++) {
         if (animations[i].name == name) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
+int Model::FindNode(const std::string &name) const {
+    for (size_t i = 0; i < nodes.size(); i++) {
+        if (nodes[i].name == name) {
             return static_cast<int>(i);
         }
     }

@@ -34,6 +34,9 @@ MeshData MakeBoxMeshData(float width, float height, float depth) {
     data.vertices.reserve(24);
     data.indices.reserve(36);
 
+    // Tangents are zeroed: generated primitives don't carry normal-mapped
+    // materials in any current demo, so the fragment shader's
+    // HasNormalTexture flag will keep the shader from reading them.
     auto addFace = [&](float nx,
                        float ny,
                        float nz,
@@ -50,10 +53,10 @@ MeshData MakeBoxMeshData(float width, float height, float depth) {
                        float p3y,
                        float p3z) {
         const uint32_t base = static_cast<uint32_t>(data.vertices.size());
-        data.vertices.push_back({p0x, p0y, p0z, 0.0f, 0.0f, nx, ny, nz});
-        data.vertices.push_back({p1x, p1y, p1z, 1.0f, 0.0f, nx, ny, nz});
-        data.vertices.push_back({p2x, p2y, p2z, 1.0f, 1.0f, nx, ny, nz});
-        data.vertices.push_back({p3x, p3y, p3z, 0.0f, 1.0f, nx, ny, nz});
+        data.vertices.push_back({p0x, p0y, p0z, 0.0f, 0.0f, nx, ny, nz, 0, 0, 0, 0});
+        data.vertices.push_back({p1x, p1y, p1z, 1.0f, 0.0f, nx, ny, nz, 0, 0, 0, 0});
+        data.vertices.push_back({p2x, p2y, p2z, 1.0f, 1.0f, nx, ny, nz, 0, 0, 0, 0});
+        data.vertices.push_back({p3x, p3y, p3z, 0.0f, 1.0f, nx, ny, nz, 0, 0, 0, 0});
         data.indices.push_back(base + 0);
         data.indices.push_back(base + 1);
         data.indices.push_back(base + 2);
@@ -102,9 +105,9 @@ MeshData MakeDiamondMeshData(float radius, float height) {
     auto addFace = [&](const glm::vec3 &a, const glm::vec3 &b, const glm::vec3 &c) {
         const glm::vec3 normal = glm::normalize(glm::cross(b - a, c - a));
         const uint32_t base = static_cast<uint32_t>(data.vertices.size());
-        const Vertex3D v0{a.x, a.y, a.z, 0.0f, 1.0f, normal.x, normal.y, normal.z};
-        const Vertex3D v1{b.x, b.y, b.z, 1.0f, 0.0f, normal.x, normal.y, normal.z};
-        const Vertex3D v2{c.x, c.y, c.z, 0.0f, 0.0f, normal.x, normal.y, normal.z};
+        const Vertex3D v0{a.x, a.y, a.z, 0.0f, 1.0f, normal.x, normal.y, normal.z, 0, 0, 0, 0};
+        const Vertex3D v1{b.x, b.y, b.z, 1.0f, 0.0f, normal.x, normal.y, normal.z, 0, 0, 0, 0};
+        const Vertex3D v2{c.x, c.y, c.z, 0.0f, 0.0f, normal.x, normal.y, normal.z, 0, 0, 0, 0};
         data.vertices.push_back(v0);
         data.vertices.push_back(v1);
         data.vertices.push_back(v2);
@@ -129,10 +132,10 @@ MeshData MakePlaneMeshData(float size) {
 
     MeshData data;
     data.vertices = {
-        {-h, 0.0f, h, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f},
-        {h, 0.0f, h, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f},
-        {h, 0.0f, -h, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f},
-        {-h, 0.0f, -h, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f},
+        {-h, 0.0f, h, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0, 0, 0, 0},
+        {h, 0.0f, h, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0, 0, 0, 0},
+        {h, 0.0f, -h, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0, 0, 0, 0},
+        {-h, 0.0f, -h, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0, 0, 0, 0},
     };
     data.indices = {0, 1, 2, 0, 2, 3};
     return data;

@@ -12,14 +12,20 @@ struct GraphicsDevice;
 
 /**
  * Vertex layout used by the skinned forward shader: position, UV,
- * normal, joint indices, and joint weights.
+ * normal, joint indices, joint weights, and tangent.
  *
- * 64 bytes, packed in declaration order: 3 floats position, 2 floats
- * UV, 3 floats normal, 4 uints joints, 4 floats weights.
+ * 80 bytes, packed in declaration order: 3 floats position, 2 floats
+ * UV, 3 floats normal, 4 uints joints, 4 floats weights, 4 floats
+ * tangent.
  *
  * Each vertex names up to four joints (bones) that influence it, with
  * a weight per joint summing to 1.0. The vertex shader looks up four
  * joint matrices from the per-frame UBO and blends them by weight.
+ *
+ * Tangent uses the glTF 2.0 vec4 layout (xyz = unit tangent, w =
+ * bitangent handedness). Same role as `Vertex3D::tx..tw` -- gated by
+ * the material's `HasNormalTexture` flag, so meshes without normal
+ * maps may leave it zero.
  */
 struct Vertex3DSkinned {
     float x, y, z;           /**< position in mesh-local space. */
@@ -27,6 +33,7 @@ struct Vertex3DSkinned {
     float nx, ny, nz;        /**< unit normal in mesh-local space. */
     uint32_t j0, j1, j2, j3; /**< joint indices into the model's skin. */
     float w0, w1, w2, w3;    /**< joint weights; should sum to 1.0. */
+    float tx, ty, tz, tw;    /**< tangent xyz + bitangent handedness w. */
 };
 
 /**

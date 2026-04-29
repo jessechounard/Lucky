@@ -4,9 +4,9 @@
 
 using namespace Lucky;
 
-TEST_CASE("Vertex3D is 32 bytes packed in declaration order") {
-    CHECK(sizeof(Vertex3D) == 32);
-    Vertex3D v{1, 2, 3, 4, 5, 6, 7, 8};
+TEST_CASE("Vertex3D is 48 bytes packed in declaration order") {
+    CHECK(sizeof(Vertex3D) == 48);
+    Vertex3D v{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
     CHECK(v.x == 1);
     CHECK(v.y == 2);
     CHECK(v.z == 3);
@@ -15,6 +15,10 @@ TEST_CASE("Vertex3D is 32 bytes packed in declaration order") {
     CHECK(v.nx == 6);
     CHECK(v.ny == 7);
     CHECK(v.nz == 8);
+    CHECK(v.tx == 9);
+    CHECK(v.ty == 10);
+    CHECK(v.tz == 11);
+    CHECK(v.tw == 12);
 }
 
 TEST_CASE("MakeCubeMeshData returns 24 vertices and 36 indices") {

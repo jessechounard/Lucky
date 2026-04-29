@@ -11,16 +11,25 @@ namespace Lucky {
 struct GraphicsDevice;
 
 /**
- * The vertex layout used by Lucky's 3D mesh path: position, UV, normal.
+ * The vertex layout used by Lucky's 3D mesh path: position, UV, normal,
+ * tangent.
  *
- * 32 bytes, packed in declaration order: 3 floats position, 2 floats UV,
- * 3 floats normal. Matches what the forward renderer expects in its
- * vertex input state.
+ * 48 bytes, packed in declaration order: 3 floats position, 2 floats UV,
+ * 3 floats normal, 4 floats tangent. Matches what the forward renderer
+ * expects in its vertex input state.
+ *
+ * Tangent uses the glTF 2.0 vec4 layout: xyz is the unit tangent in
+ * mesh-local space; w is the bitangent handedness (+1 or -1). The
+ * fragment shader reconstructs the bitangent as `cross(N, T) * w` when
+ * sampling a normal map. Meshes without normal-mapped materials may
+ * leave tangent zero -- the shader's `HasNormalTexture` flag gates the
+ * read.
  */
 struct Vertex3D {
-    float x, y, z;    /**< position in mesh-local space. */
-    float u, v;       /**< texture coordinates, normalized. */
-    float nx, ny, nz; /**< unit normal in mesh-local space. */
+    float x, y, z;        /**< position in mesh-local space. */
+    float u, v;           /**< texture coordinates, normalized. */
+    float nx, ny, nz;     /**< unit normal in mesh-local space. */
+    float tx, ty, tz, tw; /**< tangent xyz + bitangent handedness w. */
 };
 
 /**

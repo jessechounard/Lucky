@@ -19,11 +19,10 @@ namespace {
 
 // Textured PBR demo: Khronos BoomBox.glb on a ground plane. Unlike
 // MaterialDemo (which uses per-sphere factors only), this asset has
-// embedded base-color and metallic-roughness textures, so this is the
-// demo that actually exercises the fragment shader's texture-sampling
-// path. BoomBox also ships normal, emissive, and AO maps -- those are
-// Tier-3-and-beyond features the renderer ignores for now, so the
-// model looks softer than reference but materially correct.
+// embedded base-color, metallic-roughness, emissive, and normal
+// textures, so this is the demo that actually exercises every
+// material-texture path the fragment shader supports. AO is the only
+// remaining map BoomBox ships that the renderer still ignores.
 class TexturedModelDemo : public LuckyDemos::DemoBase {
   public:
     explicit TexturedModelDemo(SDL_Window *window)
