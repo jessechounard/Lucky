@@ -43,8 +43,12 @@ struct MaterialUBO {
     int hasBaseColorTexture;
     int hasMetallicRoughnessTexture;
     int hasEmissiveTexture;
+    int hasNormalTexture;
+    float normalScale;
+    float pad0;
+    float pad1;
 };
-static_assert(sizeof(MaterialUBO) == 48, "MaterialUBO must match HLSL cbuffer layout");
+static_assert(sizeof(MaterialUBO) == 64, "MaterialUBO must match HLSL cbuffer layout");
 
 // Per-light entry in the fragment LightingUBO. Layout mirrors the HLSL
 // Light struct in forward.frag.hlsl exactly; do not reorder fields.
@@ -57,8 +61,9 @@ struct LightUBOEntry {
     int type; // 0=Directional, 1=Point, 2=Spot
     float innerCone;
     float outerCone;
-    int shadowIndex; // -1 = no shadow, 0..3 = index into ShadowVP / shadow maps
-    float pad;
+    int shadowIndex;
+    int shadowType; // 0 = 2D spot/directional (use ShadowVP[shadowIndex]),
+                    // 1 = point cube (use pointShadowMap[shadowIndex] + PointShadowNearFar)
 };
 static_assert(sizeof(LightUBOEntry) == 64, "Light entry must match HLSL stride");
 
@@ -69,8 +74,13 @@ struct LightingUBO {
     float pad;
     LightUBOEntry lights[MaxLights];
     glm::mat4 shadowVP[ForwardRenderer::MaxShadowMaps];
+    // Per-point-shadow near/far packed (n0, f0, n1, f1) -- the cube
+    // shadow path stores hardware depth, so the fragment shader needs
+    // these to reverse-project the comparison value. Sized for
+    // MaxPointShadows = 2.
+    glm::vec4 pointShadowNearFar;
 };
-static_assert(sizeof(LightingUBO) == 32 + MaxLights * 64 + ForwardRenderer::MaxShadowMaps * 64,
+static_assert(sizeof(LightingUBO) == 32 + MaxLights * 64 + ForwardRenderer::MaxShadowMaps * 64 + 16,
     "LightingUBO must match HLSL cbuffer layout");
 
 // Per-draw vertex UBO for the skinned path: just ColorTint, since the
@@ -252,6 +262,14 @@ ForwardRenderer::ForwardRenderer(GraphicsDevice &graphicsDevice) : graphicsDevic
             TextureFormat::Depth);
     }
 
+    for (int i = 0; i < MaxPointShadows; i++) {
+        pointShadowMaps[i] = std::make_unique<Texture>(graphicsDevice,
+            TextureType::CubeDepthTarget,
+            PointShadowMapSize,
+            PointShadowMapSize,
+            TextureFormat::Depth);
+    }
+
     SamplerDescription shadowSampDesc;
     shadowSampDesc.filter = SamplerFilter::Point;
     shadowSampDesc.mipmapFilter = SamplerFilter::Point;
@@ -323,17 +341,24 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
 
     SDL_GPUCommandBuffer *cmd = graphicsDevice->GetCommandBuffer();
 
-    // Pre-pack the lighting UBO so we can fill in shadow VPs as we render
-    // each shadow map below. Light-to-shadow-slot assignment follows
-    // scene.lights order: first MaxShadowMaps eligible casters get slots
-    // 0..3; everything else is non-shadow-casting from the shader's POV.
+    // Pre-pack the lighting UBO so we can fill in shadow VPs / per-cube
+    // near-far values as we render each shadow map below. Two
+    // independent slot pools: 2D (directional/spot) and cube (point);
+    // assignment follows scene.lights order, first-come-first-served
+    // within each pool. Anything past either cap is lit but unshadowed.
     LightingUBO lightingUbo{};
     lightingUbo.ambientColor = scene.ambientColor;
     lightingUbo.lightCount = static_cast<int>(std::min<size_t>(scene.lights.size(), MaxLights));
     lightingUbo.cameraPosition = camera.position;
     lightingUbo.pad = 0.0f;
+    lightingUbo.pointShadowNearFar = glm::vec4(0.0f);
     int shadowCount = 0;
+    int pointShadowCount = 0;
 
+    // Pass 1: assign shadow slots and render 2D shadow maps inline.
+    // Cube renders are deferred to a second pass below so we can keep
+    // the existing 2D loop structure unchanged when no point shadows
+    // are present.
     for (int i = 0; i < lightingUbo.lightCount; i++) {
         const Light &src = scene.lights[i];
         LightUBOEntry &dst = lightingUbo.lights[i];
@@ -346,16 +371,21 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
         dst.innerCone = src.innerCone;
         dst.outerCone = src.outerCone;
         dst.shadowIndex = -1;
-        dst.pad = 0.0f;
+        dst.shadowType = 0;
 
-        const bool eligible = src.castsShadows && shadowCount < MaxShadowMaps &&
-                              (src.type == LightType::Directional || src.type == LightType::Spot);
-        if (eligible) {
+        if (!src.castsShadows) {
+            continue;
+        }
+
+        const bool is2D = (src.type == LightType::Directional || src.type == LightType::Spot);
+        const bool isCube = (src.type == LightType::Point);
+
+        if (is2D && shadowCount < MaxShadowMaps) {
             const glm::mat4 lightVP = BuildShadowViewProj(src);
             lightingUbo.shadowVP[shadowCount] = lightVP;
             dst.shadowIndex = shadowCount;
+            dst.shadowType = 0;
 
-            // Render scene depth from the light's POV into shadowMaps[shadowCount].
             graphicsDevice->BindDepthRenderTarget(*shadowMaps[shadowCount]);
             graphicsDevice->BeginRenderPass();
             SDL_GPURenderPass *shadowPass = graphicsDevice->GetCurrentRenderPass();
@@ -366,14 +396,85 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
 
                 if (shadowSkinnedPipe && !scene.skinnedObjects.empty()) {
                     SDL_BindGPUGraphicsPipeline(shadowPass, shadowSkinnedPipe);
-                    // LightViewProj at slot 0 was already pushed; the
-                    // skinned shadow shader reads the same Frame UBO.
                     DrawSkinnedSceneGeometry(shadowPass, cmd, scene);
                 }
             }
             graphicsDevice->EndRenderPass();
 
             shadowCount++;
+        } else if (isCube && pointShadowCount < MaxPointShadows) {
+            // Slot is reserved here; the actual six-face render runs in
+            // pass 2 below. Compute the near/far up front so the
+            // fragment shader's reverse-projection matches the proj
+            // we'll build then.
+            const float range = (src.range > 0.0f) ? src.range : 25.0f;
+            const float nearPlane = std::max(0.5f, range * 0.05f);
+            dst.shadowIndex = pointShadowCount;
+            dst.shadowType = 1;
+            lightingUbo.pointShadowNearFar[pointShadowCount * 2] = nearPlane;
+            lightingUbo.pointShadowNearFar[pointShadowCount * 2 + 1] = range;
+            pointShadowCount++;
+        }
+    }
+
+    // Pass 2: cube shadow maps. Six render passes per caster, each
+    // targeting one face of pointShadowMaps[si]. Same shadow pipeline
+    // as the 2D path -- the only thing that changes is the depth target
+    // (cube face via BindDepthRenderTarget's `layer` parameter) and the
+    // lightVP for that face.
+    static const glm::vec3 faceDirs[6] = {
+        {1, 0, 0},
+        {-1, 0, 0},
+        {0, 1, 0},
+        {0, -1, 0},
+        {0, 0, 1},
+        {0, 0, -1},
+    };
+    static const glm::vec3 faceUps[6] = {
+        {0, -1, 0},
+        {0, -1, 0},
+        {0, 0, 1},
+        {0, 0, -1},
+        {0, -1, 0},
+        {0, -1, 0},
+    };
+
+    for (int i = 0; i < lightingUbo.lightCount; i++) {
+        const LightUBOEntry &dst = lightingUbo.lights[i];
+        if (dst.shadowType != 1 || dst.shadowIndex < 0) {
+            continue;
+        }
+        const int si = dst.shadowIndex;
+        const float nearPlane = lightingUbo.pointShadowNearFar[si * 2];
+        const float farPlane = lightingUbo.pointShadowNearFar[si * 2 + 1];
+        // 90-degree FOV per face covers exactly one sixth of the sphere.
+        // Y-flip on the projection compensates for the difference
+        // between cubemap face orientation and the sampler's expected
+        // convention -- without it, side-face content samples upside-
+        // down when the fragment shader looks up via direction vector.
+        glm::mat4 proj = glm::perspectiveRH_ZO(glm::radians(90.0f), 1.0f, nearPlane, farPlane);
+        proj[1][1] *= -1.0f;
+
+        for (int face = 0; face < 6; face++) {
+            const glm::mat4 view =
+                glm::lookAt(dst.position, dst.position + faceDirs[face], faceUps[face]);
+            const glm::mat4 lightVP = proj * view;
+
+            graphicsDevice->BindDepthRenderTarget(
+                *pointShadowMaps[si], static_cast<uint32_t>(face));
+            graphicsDevice->BeginRenderPass();
+            SDL_GPURenderPass *shadowPass = graphicsDevice->GetCurrentRenderPass();
+            if (shadowPass) {
+                SDL_BindGPUGraphicsPipeline(shadowPass, shadowPipe);
+                SDL_PushGPUVertexUniformData(cmd, 0, &lightVP, sizeof(lightVP));
+                DrawSceneGeometry(shadowPass, cmd, scene);
+
+                if (shadowSkinnedPipe && !scene.skinnedObjects.empty()) {
+                    SDL_BindGPUGraphicsPipeline(shadowPass, shadowSkinnedPipe);
+                    DrawSkinnedSceneGeometry(shadowPass, cmd, scene);
+                }
+            }
+            graphicsDevice->EndRenderPass();
         }
     }
 
@@ -415,7 +516,7 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
 
         const Material *mat = object.material ? object.material : &defaultMaterial;
 
-        MaterialUBO matUbo;
+        MaterialUBO matUbo{};
         matUbo.baseColorFactor = mat->baseColorFactor;
         matUbo.emissiveFactor = mat->emissiveFactor;
         matUbo.metallicFactor = mat->metallicFactor;
@@ -423,17 +524,20 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
         matUbo.hasBaseColorTexture = mat->baseColorTexture ? 1 : 0;
         matUbo.hasMetallicRoughnessTexture = mat->metallicRoughnessTexture ? 1 : 0;
         matUbo.hasEmissiveTexture = mat->emissiveTexture ? 1 : 0;
+        matUbo.hasNormalTexture = mat->normalTexture ? 1 : 0;
+        matUbo.normalScale = mat->normalScale;
         SDL_PushGPUFragmentUniformData(cmd, 1, &matUbo, sizeof(matUbo));
 
         SDL_GPUSampler *matSampler = (mat->sampler ? mat->sampler->GetSampler() : defaultSampler);
 
-        // Bind all seven fragment texture+sampler pairs in one call.
+        // Bind all ten fragment texture+sampler pairs in one call.
         // Splitting these into separate range binds (e.g. material per
         // object + shadows per frame) doesn't actually rebind on D3D12;
         // each draw needs the complete set together. Slots 0..1 are
         // material textures (base color, metallic-roughness); 2..5 are
-        // the four shadow maps; 6 is the emissive texture.
-        SDL_GPUTextureSamplerBinding bindings[3 + MaxShadowMaps];
+        // the four 2D shadow maps; 6 is the emissive texture; 7 is the
+        // normal map; 8..9 are the two point shadow cubemaps.
+        SDL_GPUTextureSamplerBinding bindings[4 + MaxShadowMaps + MaxPointShadows];
         SDL_zero(bindings[0]);
         bindings[0].texture =
             mat->baseColorTexture ? mat->baseColorTexture->GetGPUTexture() : whiteGpuTex;
@@ -452,7 +556,16 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
         bindings[2 + MaxShadowMaps].texture =
             mat->emissiveTexture ? mat->emissiveTexture->GetGPUTexture() : whiteGpuTex;
         bindings[2 + MaxShadowMaps].sampler = matSampler;
-        SDL_BindGPUFragmentSamplers(renderPass, 0, bindings, 3 + MaxShadowMaps);
+        SDL_zero(bindings[3 + MaxShadowMaps]);
+        bindings[3 + MaxShadowMaps].texture =
+            mat->normalTexture ? mat->normalTexture->GetGPUTexture() : whiteGpuTex;
+        bindings[3 + MaxShadowMaps].sampler = matSampler;
+        for (int i = 0; i < MaxPointShadows; i++) {
+            SDL_zero(bindings[4 + MaxShadowMaps + i]);
+            bindings[4 + MaxShadowMaps + i].texture = pointShadowMaps[i]->GetGPUTexture();
+            bindings[4 + MaxShadowMaps + i].sampler = shadowSamp;
+        }
+        SDL_BindGPUFragmentSamplers(renderPass, 0, bindings, 4 + MaxShadowMaps + MaxPointShadows);
 
         ObjectUBO ubo;
         ubo.model = object.transform;
@@ -488,7 +601,7 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
 
             const Material *mat = object.material ? object.material : &defaultMaterial;
 
-            MaterialUBO matUbo;
+            MaterialUBO matUbo{};
             matUbo.baseColorFactor = mat->baseColorFactor;
             matUbo.emissiveFactor = mat->emissiveFactor;
             matUbo.metallicFactor = mat->metallicFactor;
@@ -496,12 +609,14 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
             matUbo.hasBaseColorTexture = mat->baseColorTexture ? 1 : 0;
             matUbo.hasMetallicRoughnessTexture = mat->metallicRoughnessTexture ? 1 : 0;
             matUbo.hasEmissiveTexture = mat->emissiveTexture ? 1 : 0;
+            matUbo.hasNormalTexture = mat->normalTexture ? 1 : 0;
+            matUbo.normalScale = mat->normalScale;
             SDL_PushGPUFragmentUniformData(cmd, 1, &matUbo, sizeof(matUbo));
 
             SDL_GPUSampler *matSampler =
                 (mat->sampler ? mat->sampler->GetSampler() : defaultSampler);
 
-            SDL_GPUTextureSamplerBinding bindings[3 + MaxShadowMaps];
+            SDL_GPUTextureSamplerBinding bindings[4 + MaxShadowMaps + MaxPointShadows];
             SDL_zero(bindings[0]);
             bindings[0].texture =
                 mat->baseColorTexture ? mat->baseColorTexture->GetGPUTexture() : whiteGpuTex;
@@ -520,7 +635,17 @@ void ForwardRenderer::Render(const Scene3D &scene, const Camera &camera) {
             bindings[2 + MaxShadowMaps].texture =
                 mat->emissiveTexture ? mat->emissiveTexture->GetGPUTexture() : whiteGpuTex;
             bindings[2 + MaxShadowMaps].sampler = matSampler;
-            SDL_BindGPUFragmentSamplers(renderPass, 0, bindings, 3 + MaxShadowMaps);
+            SDL_zero(bindings[3 + MaxShadowMaps]);
+            bindings[3 + MaxShadowMaps].texture =
+                mat->normalTexture ? mat->normalTexture->GetGPUTexture() : whiteGpuTex;
+            bindings[3 + MaxShadowMaps].sampler = matSampler;
+            for (int i = 0; i < MaxPointShadows; i++) {
+                SDL_zero(bindings[4 + MaxShadowMaps + i]);
+                bindings[4 + MaxShadowMaps + i].texture = pointShadowMaps[i]->GetGPUTexture();
+                bindings[4 + MaxShadowMaps + i].sampler = shadowSamp;
+            }
+            SDL_BindGPUFragmentSamplers(
+                renderPass, 0, bindings, 4 + MaxShadowMaps + MaxPointShadows);
 
             SkinnedObjectUBO objectUbo;
             objectUbo.colorTint = glm::vec4(object.color, 1.0f);
@@ -560,7 +685,7 @@ SDL_GPUGraphicsPipeline *ForwardRenderer::GetOrCreateForwardPipeline(
     vbufDesc.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
     vbufDesc.pitch = sizeof(Vertex3D);
 
-    SDL_GPUVertexAttribute attrs[3];
+    SDL_GPUVertexAttribute attrs[4];
     SDL_zero(attrs);
     attrs[0].location = 0;
     attrs[0].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
@@ -571,6 +696,9 @@ SDL_GPUGraphicsPipeline *ForwardRenderer::GetOrCreateForwardPipeline(
     attrs[2].location = 2;
     attrs[2].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
     attrs[2].offset = offsetof(Vertex3D, nx);
+    attrs[3].location = 3;
+    attrs[3].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4;
+    attrs[3].offset = offsetof(Vertex3D, tx);
 
     SDL_GPUColorTargetDescription colorTarget;
     SDL_zero(colorTarget);
@@ -582,7 +710,7 @@ SDL_GPUGraphicsPipeline *ForwardRenderer::GetOrCreateForwardPipeline(
     ci.fragment_shader = forwardFragmentShader->GetHandle();
     ci.vertex_input_state.num_vertex_buffers = 1;
     ci.vertex_input_state.vertex_buffer_descriptions = &vbufDesc;
-    ci.vertex_input_state.num_vertex_attributes = 3;
+    ci.vertex_input_state.num_vertex_attributes = 4;
     ci.vertex_input_state.vertex_attributes = attrs;
     ci.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
     ci.depth_stencil_state.enable_depth_test = true;
@@ -677,11 +805,13 @@ SDL_GPUGraphicsPipeline *ForwardRenderer::GetOrCreateShadowPipeline(
 namespace {
 
 // Vertex layout shared by the skinned forward and shadow pipelines.
-// Five attributes: position, uv, normal, joint indices (uint4), and
-// joint weights (float4). Matches Vertex3DSkinned and the input
-// declaration in forward_skinned.vert.hlsl / shadow_depth_skinned.vert.hlsl.
+// Six attributes: position, uv, normal, joint indices (uint4), joint
+// weights (float4), and tangent (float4 with bitangent handedness in
+// w). The shadow shader only reads the first five; the tangent slot
+// is declared so the buffer pitch and offset math match the forward
+// path, and the shadow pipeline uses count=5 to skip declaring it.
 void FillSkinnedVertexInput(
-    SDL_GPUVertexBufferDescription &vbufDesc, SDL_GPUVertexAttribute attrs[5]) {
+    SDL_GPUVertexBufferDescription &vbufDesc, SDL_GPUVertexAttribute attrs[6]) {
     SDL_zero(vbufDesc);
     vbufDesc.slot = 0;
     vbufDesc.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
@@ -707,6 +837,10 @@ void FillSkinnedVertexInput(
     attrs[4].location = 4;
     attrs[4].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4;
     attrs[4].offset = offsetof(Vertex3DSkinned, w0);
+    SDL_zero(attrs[5]);
+    attrs[5].location = 5;
+    attrs[5].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4;
+    attrs[5].offset = offsetof(Vertex3DSkinned, tx);
 }
 
 } // namespace
@@ -721,7 +855,7 @@ SDL_GPUGraphicsPipeline *ForwardRenderer::GetOrCreateForwardSkinnedPipeline(
     SDL_GPUDevice *device = graphicsDevice->GetDevice();
 
     SDL_GPUVertexBufferDescription vbufDesc;
-    SDL_GPUVertexAttribute attrs[5];
+    SDL_GPUVertexAttribute attrs[6];
     FillSkinnedVertexInput(vbufDesc, attrs);
 
     SDL_GPUColorTargetDescription colorTarget;
@@ -734,7 +868,7 @@ SDL_GPUGraphicsPipeline *ForwardRenderer::GetOrCreateForwardSkinnedPipeline(
     ci.fragment_shader = forwardFragmentShader->GetHandle();
     ci.vertex_input_state.num_vertex_buffers = 1;
     ci.vertex_input_state.vertex_buffer_descriptions = &vbufDesc;
-    ci.vertex_input_state.num_vertex_attributes = 5;
+    ci.vertex_input_state.num_vertex_attributes = 6;
     ci.vertex_input_state.vertex_attributes = attrs;
     ci.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
     ci.depth_stencil_state.enable_depth_test = true;
@@ -766,7 +900,7 @@ SDL_GPUGraphicsPipeline *ForwardRenderer::GetOrCreateShadowSkinnedPipeline(
     }
 
     SDL_GPUVertexBufferDescription vbufDesc;
-    SDL_GPUVertexAttribute attrs[5];
+    SDL_GPUVertexAttribute attrs[6];
     FillSkinnedVertexInput(vbufDesc, attrs);
 
     SDL_GPUGraphicsPipelineCreateInfo ci;
@@ -775,6 +909,10 @@ SDL_GPUGraphicsPipeline *ForwardRenderer::GetOrCreateShadowSkinnedPipeline(
     ci.fragment_shader = shadowFragmentShader->GetHandle();
     ci.vertex_input_state.num_vertex_buffers = 1;
     ci.vertex_input_state.vertex_buffer_descriptions = &vbufDesc;
+    // Shadow shader doesn't read tangent (location 5); declare only the
+    // first five attributes. The buffer pitch already includes the
+    // tangent slot since FillSkinnedVertexInput sets pitch from
+    // sizeof(Vertex3DSkinned).
     ci.vertex_input_state.num_vertex_attributes = 5;
     ci.vertex_input_state.vertex_attributes = attrs;
     ci.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;

@@ -11,6 +11,7 @@ struct VSInput {
     float3 Position : TEXCOORD0;
     float2 TexCoord : TEXCOORD1;
     float3 Normal   : TEXCOORD2;
+    float4 Tangent  : TEXCOORD3; // xyz = tangent, w = bitangent handedness
 };
 
 struct VSOutput {
@@ -18,6 +19,7 @@ struct VSOutput {
     float2 TexCoord  : TEXCOORD1;
     float3 Normal    : TEXCOORD2;
     float3 ColorTint : TEXCOORD3;
+    float4 Tangent   : TEXCOORD4; // xyz transformed; w handedness preserved
     float4 Position  : SV_Position;
 };
 
@@ -32,6 +34,11 @@ VSOutput main(VSInput input) {
     // For non-uniform scales the inverse-transpose would be more correct,
     // but uniform scales (and the demo's transforms) are fine with this.
     o.Normal = normalize(mul((float3x3)Model, input.Normal));
+
+    // Tangent: transform xyz the same way as the normal; preserve w
+    // (bitangent handedness) untouched. Don't normalize here -- the
+    // fragment shader does it after Gram-Schmidt against the normal.
+    o.Tangent = float4(mul((float3x3)Model, input.Tangent.xyz), input.Tangent.w);
 
     o.TexCoord = input.TexCoord;
     o.ColorTint = ColorTint.rgb;

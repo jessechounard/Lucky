@@ -23,13 +23,16 @@ struct Texture;
  *
  * Each frame:
  *   1. For each shadow-casting `Directional` or `Spot` light (up to 4),
- *      render scene depth into the light's 1024x1024 shadow texture.
- *   2. Render the scene into the bound color/depth target with full
- *      lighting from `Scene3D::lights`, sampling the shadow maps to
- *      attenuate diffuse contribution.
+ *      render scene depth into the light's 2D shadow texture.
+ *   2. For each shadow-casting `Point` light (up to 2), render scene
+ *      depth into all six faces of the light's cube shadow texture
+ *      (six passes per cube).
+ *   3. Render the scene into the bound color/depth target with full
+ *      lighting from `Scene3D::lights`, sampling the appropriate shadow
+ *      map (2D or cube) per light to attenuate the BRDF contribution.
  *
- * Point-light shadows are not implemented yet; setting
- * `Light::castsShadows` on a point light is silently ignored.
+ * Per-frame slot caps are first-come-first-served by `scene.lights`
+ * order; lights past the cap are still lit but cast no shadow.
  *
  * # Usage
  *
@@ -75,8 +78,25 @@ struct ForwardRenderer {
     /** Maximum number of 2D shadow maps the renderer maintains. */
     static constexpr int MaxShadowMaps = 4;
 
-    /** Edge length of each shadow map in texels. */
+    /** Edge length of each 2D shadow map in texels. */
     static constexpr uint32_t ShadowMapSize = 2048;
+
+    /**
+     * Maximum number of cube shadow maps the renderer maintains. Each
+     * cube costs six render passes per frame, so this cap is intentionally
+     * lower than MaxShadowMaps -- a typical scene might place a single
+     * point caster (a torch, a magic effect) and accept that everything
+     * else is unshadowed.
+     */
+    static constexpr int MaxPointShadows = 2;
+
+    /**
+     * Edge length of each cube face in texels. Smaller than ShadowMapSize
+     * because cube shadows render six times per frame and the player is
+     * usually closer to the point caster than to the sun, so per-texel
+     * world coverage is naturally tighter.
+     */
+    static constexpr uint32_t PointShadowMapSize = 1024;
 
     /**
      * Maximum number of joints per skinned mesh.
@@ -133,6 +153,7 @@ struct ForwardRenderer {
     SDL_GPUTextureFormat shadowSkinnedPipelineDepthFormat = SDL_GPU_TEXTUREFORMAT_INVALID;
 
     std::unique_ptr<Texture> shadowMaps[MaxShadowMaps];
+    std::unique_ptr<Texture> pointShadowMaps[MaxPointShadows];
     std::unique_ptr<Sampler> shadowSampler;
 
     // 1x1 white texture used as the base-color fallback when an object's

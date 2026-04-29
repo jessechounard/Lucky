@@ -27,6 +27,7 @@ struct VSInput {
     float3 Normal   : TEXCOORD2;
     uint4  Joints   : TEXCOORD3;
     float4 Weights  : TEXCOORD4;
+    float4 Tangent  : TEXCOORD5; // xyz = tangent, w = bitangent handedness
 };
 
 struct VSOutput {
@@ -34,6 +35,7 @@ struct VSOutput {
     float2 TexCoord  : TEXCOORD1;
     float3 Normal    : TEXCOORD2;
     float3 ColorTint : TEXCOORD3;
+    float4 Tangent   : TEXCOORD4; // xyz transformed; w handedness preserved
     float4 Position  : SV_Position;
 };
 
@@ -57,6 +59,10 @@ VSOutput main(VSInput input) {
     // assumption as the rigid path; non-uniform scales would need an
     // inverse-transpose per joint.
     o.Normal = normalize(mul((float3x3)skinMatrix, input.Normal));
+
+    // Tangent: rotated by the same skin matrix as the normal; w
+    // (handedness) carries through untouched.
+    o.Tangent = float4(mul((float3x3)skinMatrix, input.Tangent.xyz), input.Tangent.w);
 
     o.TexCoord = input.TexCoord;
     o.ColorTint = ColorTint.rgb;

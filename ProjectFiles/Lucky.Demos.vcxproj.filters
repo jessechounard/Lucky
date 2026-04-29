@@ -37,6 +37,9 @@
     <ClCompile Include="..\Demos\Source\Demos\MaterialDemo.cpp">
       <Filter>Source\Demos</Filter>
     </ClCompile>
+    <ClCompile Include="..\Demos\Source\Demos\PointShadowDemo.cpp">
+      <Filter>Source\Demos</Filter>
+    </ClCompile>
     <ClCompile Include="..\Demos\Source\Demos\PoseBlendDemo.cpp">
       <Filter>Source\Demos</Filter>
     </ClCompile>

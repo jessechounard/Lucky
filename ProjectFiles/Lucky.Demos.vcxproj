@@ -160,6 +160,7 @@ xcopy /E /Y /D /I "$(ProjectDir)..\Demos\Content" "$(OutDir)Content\"</Command>
     <ClCompile Include="..\Demos\Source\Demos\GltfDemo.cpp" />
     <ClCompile Include="..\Demos\Source\Demos\HelloTriangleDemo.cpp" />
     <ClCompile Include="..\Demos\Source\Demos\MaterialDemo.cpp" />
+    <ClCompile Include="..\Demos\Source\Demos\PointShadowDemo.cpp" />
     <ClCompile Include="..\Demos\Source\Demos\PoseBlendDemo.cpp" />
     <ClCompile Include="..\Demos\Source\Demos\RenderTextureDemo.cpp" />
     <ClCompile Include="..\Demos\Source\Demos\TexturedModelDemo.cpp" />

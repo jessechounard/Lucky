@@ -12,8 +12,9 @@ struct Light {
     int    Type;        // 0=Directional, 1=Point, 2=Spot
     float  InnerCone;
     float  OuterCone;
-    int    ShadowIndex; // -1 = no 2D shadow; 0..3 = index into ShadowVP
-    float  _pad;
+    int    ShadowIndex; // -1 = no shadow; for 2D path, index into ShadowVP / shadow maps;
+                        // for cube path, index into PointShadowNearFar / point shadow cubes.
+    int    ShadowType;  // 0 = 2D spot/directional shadow, 1 = point cube shadow.
 };
 
 cbuffer LightingUBO : register(b0, space3) {
@@ -23,6 +24,10 @@ cbuffer LightingUBO : register(b0, space3) {
     float    _frameLightPad;
     Light    Lights[8];
     float4x4 ShadowVP[4];
+    // (n0, f0, n1, f1) for the two point shadow cubes, used by
+    // ComputePointShadow to convert eye-space distance into the same
+    // normalized depth that the depth target stored.
+    float4   PointShadowNearFar;
 };
 
 cbuffer MaterialUBO : register(b1, space3) {
@@ -33,20 +38,27 @@ cbuffer MaterialUBO : register(b1, space3) {
     int    HasBaseColorTexture;
     int    HasMetallicRoughnessTexture;
     int    HasEmissiveTexture;
+    int    HasNormalTexture;
+    float  NormalScale;
+    float  _matPad0;
+    float  _matPad1;
 };
 
 // SDL_shadercross classifies each texture+sampler PAIR as a "sampler"
 // binding and any unpaired textures as "storage_textures". To get all
-// seven textures into the SDL_BindGPUFragmentSamplers path, every
+// eight textures into the SDL_BindGPUFragmentSamplers path, every
 // texture needs its own SamplerState declaration -- even though we
 // bind the same Lucky::Sampler instance to all four shadow slots.
-Texture2D    BaseColorTexture          : register(t0, space2);
-Texture2D    MetallicRoughnessTexture  : register(t1, space2);
-Texture2D    ShadowMap0                : register(t2, space2);
-Texture2D    ShadowMap1                : register(t3, space2);
-Texture2D    ShadowMap2                : register(t4, space2);
-Texture2D    ShadowMap3                : register(t5, space2);
-Texture2D    EmissiveTexture           : register(t6, space2);
+Texture2D        BaseColorTexture          : register(t0, space2);
+Texture2D        MetallicRoughnessTexture  : register(t1, space2);
+Texture2D        ShadowMap0                : register(t2, space2);
+Texture2D        ShadowMap1                : register(t3, space2);
+Texture2D        ShadowMap2                : register(t4, space2);
+Texture2D        ShadowMap3                : register(t5, space2);
+Texture2D        EmissiveTexture           : register(t6, space2);
+Texture2D        NormalTexture             : register(t7, space2);
+TextureCube<float> PointShadowMap0         : register(t8, space2);
+TextureCube<float> PointShadowMap1         : register(t9, space2);
 
 SamplerState BaseColorSampler          : register(s0, space2);
 SamplerState MetallicRoughnessSampler  : register(s1, space2);
@@ -55,6 +67,9 @@ SamplerState ShadowSampler1            : register(s3, space2);
 SamplerState ShadowSampler2            : register(s4, space2);
 SamplerState ShadowSampler3            : register(s5, space2);
 SamplerState EmissiveSampler           : register(s6, space2);
+SamplerState NormalSampler             : register(s7, space2);
+SamplerState PointShadowSampler0       : register(s8, space2);
+SamplerState PointShadowSampler1       : register(s9, space2);
 
 static const float PI = 3.14159265359;
 
@@ -99,6 +114,67 @@ float ComputeShadow(int shadowIndex, float3 worldPos, float3 N, float3 L) {
     return shadow / 25.0;
 }
 
+float SamplePointShadowMap(int index, float3 dir) {
+    if (index == 0) return PointShadowMap0.Sample(PointShadowSampler0, dir);
+    return PointShadowMap1.Sample(PointShadowSampler1, dir);
+}
+
+// Cube-shadow lookup for point lights. The depth target stores
+// hardware (clip-space) depth, so we have to reconstruct what value
+// the rasterizer would have written for the current fragment's
+// distance from the light. The dominant axis of `fragToLight` plays
+// the role of eye-space Z because each cube face's view matrix points
+// straight down its own axis -- so |max component| is z_eye for the
+// matching face. Reverse-projection of the perspective matrix gives
+// the normalized depth value to compare against the sampled texel.
+float ComputePointShadow(int shadowIndex, float3 worldPos, float3 lightPos, float3 N) {
+    if (shadowIndex < 0) return 1.0;
+
+    // Same normal-offset bias trick as the 2D path: shift the lookup
+    // position along the surface normal so back-facing rays don't
+    // self-shadow against the casting surface.
+    float3 toLight = lightPos - worldPos;
+    float distToLight = length(toLight);
+    float3 L = toLight / max(distToLight, 1e-4);
+    float NdotL = saturate(dot(N, L));
+    float normalOffset = 0.05 * (1.0 - NdotL) + 0.01;
+    float3 biasedPos = worldPos + N * normalOffset;
+
+    float3 fragToLight = biasedPos - lightPos;
+    float near = (shadowIndex == 0) ? PointShadowNearFar.x : PointShadowNearFar.z;
+    float far  = (shadowIndex == 0) ? PointShadowNearFar.y : PointShadowNearFar.w;
+
+    // Eye-space Z for the cube face this direction targets is the
+    // magnitude of the dominant axis. (One of |x|, |y|, |z| equals
+    // the eye-space Z for the face whose forward is that axis.)
+    float3 absDir = abs(fragToLight);
+    float z_eye = max(absDir.x, max(absDir.y, absDir.z));
+
+    // Perspective depth = far*(z-near) / (z*(far-near)). Matches the
+    // glm::perspectiveRH_ZO projection the renderer uses per face.
+    float expectedZ = far * (z_eye - near) / (z_eye * (far - near));
+    if (expectedZ < 0.0 || expectedZ > 1.0) return 1.0;
+
+    // PCF: build a basis perpendicular to fragToLight and tap a 3x3
+    // grid in tangent space. Offset scale grows with distance so the
+    // kernel covers a roughly constant world-space area.
+    float3 dir = fragToLight / max(distToLight, 1e-4);
+    float3 helper = (abs(dir.y) < 0.99) ? float3(0, 1, 0) : float3(1, 0, 0);
+    float3 tangent = normalize(cross(helper, dir));
+    float3 bitangent = cross(dir, tangent);
+    float offsetScale = z_eye / 1024.0 * 2.0; // matches PointShadowMapSize
+
+    float shadow = 0.0;
+    for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+            float3 sampleDir = fragToLight + (tangent * x + bitangent * y) * offsetScale;
+            float depth = SamplePointShadowMap(shadowIndex, sampleDir);
+            shadow += (expectedZ > depth) ? 0.0 : 1.0;
+        }
+    }
+    return shadow / 9.0;
+}
+
 // GGX / Trowbridge-Reitz normal distribution function.
 float D_GGX(float NdotH, float roughness) {
     float a = roughness * roughness;
@@ -130,6 +206,7 @@ struct PSInput {
     float2 TexCoord  : TEXCOORD1;
     float3 Normal    : TEXCOORD2;
     float3 ColorTint : TEXCOORD3;
+    float4 Tangent   : TEXCOORD4; // xyz tangent, w handedness
 };
 
 struct PSOutput {
@@ -171,6 +248,20 @@ PSOutput main(PSInput input) {
     // PBR setup: F0 lerps between dielectric (0.04) and full metal (base color).
     float3 N = normalize(input.Normal);
     float3 V = normalize(CameraPosition - input.WorldPos);
+
+    // Normal mapping: replace N with the tangent-space sample when a
+    // normal map is bound. Build the TBN from the (Gram-Schmidt-
+    // orthogonalized) interpolated tangent and the geometric normal,
+    // then unpack the sample from [0,1] to [-1,1] and apply the
+    // per-material xy scale before reconstructing z and rotating into
+    // world space. Normal maps are linear data -- no sRGB decode here.
+    if (HasNormalTexture != 0) {
+        float3 T = normalize(input.Tangent.xyz - N * dot(N, input.Tangent.xyz));
+        float3 B = cross(N, T) * input.Tangent.w;
+        float3 nm = NormalTexture.Sample(NormalSampler, input.TexCoord).rgb * 2.0 - 1.0;
+        nm.xy *= NormalScale;
+        N = normalize(T * nm.x + B * nm.y + N * nm.z);
+    }
 
     float3 F0 = lerp(float3(0.04, 0.04, 0.04), baseColor.rgb, metallic);
     float3 albedo = baseColor.rgb * (1.0 - metallic);
@@ -226,7 +317,13 @@ PSOutput main(PSInput input) {
         // kd = (1 - F) * (1 - metallic).
         float3 diffuse = kd * albedo;
 
-        float shadow = ComputeShadow(Lights[i].ShadowIndex, input.WorldPos, N, L);
+        float shadow;
+        if (Lights[i].ShadowType == 1) {
+            shadow = ComputePointShadow(
+                Lights[i].ShadowIndex, input.WorldPos, Lights[i].Position, N);
+        } else {
+            shadow = ComputeShadow(Lights[i].ShadowIndex, input.WorldPos, N, L);
+        }
 
         lighting += (diffuse + specular) * Lights[i].Color * attenuation * NdotL * shadow;
     }
